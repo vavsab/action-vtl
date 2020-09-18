@@ -1,11 +1,28 @@
-name: 'Your name here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'mapped/action-semver'
+description: 'Establishes a common SEMVER in enviornment variables and version.txt file'
+author: 'Mapped <info@mapped.com>'
+
 inputs:
-  milliseconds: # change this
+  baseVersion:
+    description: 'The base version of this repo. This value must be manually updated when the base version is incremented.'
     required: true
-    description: 'input description here'
-    default: 'default value if applicable'
+  branchMappings:
+    description: 'Used for mapping untagged branches to tag names, such as main:latest.'
+    required: false
+    default: "main:latest"
+  prereleasePrefix:
+    description: 'The <pre-release> prefix on an untagged SEMVER'
+    required: false
+    default: "prerelease"
+  versionFile:
+    description: 'The filename where the full SEMVER and commit SHA should be written'
+    required: false
+    default: "VERSION"
+
 runs:
   using: 'node12'
   main: 'dist/index.js'
+
+branding:
+    icon: target
+    color: 'blue'

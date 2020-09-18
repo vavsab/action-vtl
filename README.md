@@ -1,20 +1,159 @@
 <p align="center">
-  <a href="https://github.com/actions/typescript-action/actions"><img alt="typescript-action status" src="https://github.com/actions/typescript-action/workflows/build-test/badge.svg"></a>
+  <a href="https://github.com/mapped/action-semver/actions"><img alt="action-semver status" src="https://github.com/mapped/action-semver/workflows/build-test/badge.svg"></a>
 </p>
 
-# Create a JavaScript Action using TypeScript
+# GitHub Action for Consistent SEMVERs
 
-Use this template to bootstrap the creation of a TypeScript action.:rocket:
+## Usage:
+```yml
+  - uses: mapped/action-semver@v0.1.0
+    with:
+      baseVersion: '1.2.3'
+```
 
-This template includes compilation support, tests, a validation workflow, publishing, and versioning guidance.  
+### Options
+ - **baseVersion** - The base version of this repo. This value must be manually updated when the base version is incremented.
+ - **branchMappings** - Used for mapping untagged branches to tag names. Mappings are one per line, each as `branch:target_name`.
+   - Optional, default = `main:latest`
+ - **prereleasePrefix** - The <pre-release> prefix on an untagged SEMVER.
+   - Optional, default = `prerelease`
+ - **versionFile** - The filename where the full SEMVER and commit SHA should be written.
+   - Optional, default `VERSION`
 
-If you are new, there's also a simpler introduction.  See the [Hello World JavaScript Action](https://github.com/actions/hello-world-javascript-action)
+## Capabilities
+This GitHub Action creates consistent SEMVER and tag environment variables with a few simple rules:
+ 1. If the Action was triggered by the creation of a tag, the tag's SEMVER is used
+ 2. If the Action was triggered by a push, the SEMVER passed to this action is augmented with a pre-release and build number, and the tag is either the branch name or a mapped value _(for example `main` can be mapped to `latest`)
+ 3. If the Action was triggered by a PR, the SEMVER passed to this action is augmented with a pre-release and build number, and the tag is set to `merge`
 
-## Create an action from this template
+## 1. Release Tag Created
+With the following input:
+  - Action run# 23
+  - Action YML:
+    ```yml
+      - uses: mapped/action-semver
+        with:
+          baseVersion: '1.2.3'
+          branchMappings: |
+            main:latest
+          prereleasePrefix: 'prerelease'
+          versionFile: 'VERSION'
+    ```
+  - Last commit in the tag: `a8cb3d0eae1f1a064896493f4cf63dafc17bafcf`
+  - `v3.4.5-alpha.1` **release tag is created**
 
-Click the `Use this Template` and provide the new repo details for your action
+This action will produce the following environment variables:
+```bash
+VERSION_TAG=v3.4.5-alpha.1
+SEMVER=3.4.5-alpha.1+20200918T041126920Z.a8cb3d0e
+SEMVER_MAJOR=3
+SEMVER_MINOR=4
+SEMVER_PATCH=5
+SEMVER_PRERELEASE=alpha.1
+SEMVER_BUILD=20200918T041126920Z.a8cb3d0e
+```
 
-## Code in Main
+and create a `VERSION` file with the contents:
+```
+3.4.5-alpha.1+20200918T041126920Z.a8cb3d0e
+```
+
+_Note that the `20200918T041126920Z` portions are UTC datetime strings representing the time the action was run._
+
+## 2a. Push to a Mapped Branch
+With the following input:
+  - Action run# 23
+  - Action YML:
+    ```yml
+      - uses: mapped/action-semver
+        with:
+          baseVersion: '1.2.3'
+          branchMappings: |
+            main:latest
+          prereleasePrefix: 'prerelease'
+          versionFile: 'VERSION'
+    ```
+  - **Push to `main` branch** with a commit hash of `a8cb3d0eae1f1a064896493f4cf63dafc17bafcf`
+
+This action will produce the following environment variables:
+```bash
+VERSION_TAG=latest
+SEMVER=1.2.3-prerelease.23+20200918T041126920Z.a8cb3d0e
+SEMVER_MAJOR=1
+SEMVER_MINOR=2
+SEMVER_PATCH=3
+SEMVER_PRERELEASE=prerelease.23
+SEMVER_BUILD=20200918T041126920Z.a8cb3d0e
+```
+
+and create a `VERSION` file with the contents:
+```
+1.2.3-prerelease.23+20200918T041126920Z.a8cb3d0e
+```
+
+## 2b. Push to an Unmapped Branch
+With the following input:
+  - Action run# 23
+  - Action YML:
+    ```yml
+      - uses: mapped/action-semver
+        with:
+          baseVersion: '1.2.3'
+          branchMappings: |
+            main:latest
+          prereleasePrefix: 'prerelease'
+          versionFile: 'VERSION'
+    ```
+  - **Push to `my-feature-work` branch** with a commit hash of `a8cb3d0eae1f1a064896493f4cf63dafc17bafcf`
+
+This action will produce the following environment variables:
+```bash
+VERSION_TAG=my-feature-work
+SEMVER=1.2.3-prerelease.23+20200918T041126920Z.a8cb3d0e
+SEMVER_MAJOR=1
+SEMVER_MINOR=2
+SEMVER_PATCH=3
+SEMVER_PRERELEASE=prerelease.23
+SEMVER_BUILD=20200918T041126920Z.a8cb3d0e
+```
+
+and create a `VERSION` file with the contents:
+```
+1.2.3-prerelease.23+20200918T041126920Z.a8cb3d0e
+```
+
+## 3. Pull Request
+With the following input:
+  - Action run# 23
+  - Action YML:
+    ```yml
+      - uses: mapped/action-semver
+        with:
+          baseVersion: '1.2.3'
+          branchMappings: |
+            main:latest
+          prereleasePrefix: 'prerelease'
+          versionFile: 'VERSION'
+    ```
+  - **Pull Request** with a head commit hash of `a8cb3d0eae1f1a064896493f4cf63dafc17bafcf`
+
+This action will produce the following environment variables:
+```yml
+VERSION_TAG=merge
+SEMVER=1.2.3-prerelease.23+20200918T041126920Z.a8cb3d0e
+SEMVER_MAJOR=1
+SEMVER_MINOR=2
+SEMVER_PATCH=3
+SEMVER_PRERELEASE=prerelease.23
+SEMVER_BUILD=20200918T041126920Z.a8cb3d0e
+```
+
+and create a `VERSION` file with the contents:
+```
+1.2.3-prerelease.23+20200918T041126920Z.a8cb3d0e
+```
+
+## Building / Testing / Contributing
 
 Install the dependencies  
 ```bash
@@ -30,74 +169,19 @@ Run the tests :heavy_check_mark:
 ```bash
 $ npm test
 
- PASS  ./index.test.js
-  ✓ throws invalid number (3ms)
-  ✓ wait 500 ms (504ms)
-  ✓ test runs (95ms)
+ PASS  __tests__/main.test.ts
+  √ invalid semver (19ms)
+  √ no ref
+  √ push on mapped branch (1ms)
+  √ push on unmapped branch (1ms)
+  √ tag 1
+  √ tag 2
+  √ pr (1ms)
 
+Test Suites: 1 passed, 1 total
+Snapshots:   0 total
+Time:        2.439s, estimated 3s
+Ran all test suites.
 ...
 ```
 
-## Change action.yml
-
-The action.yml contains defines the inputs and output for your action.
-
-Update the action.yml with your name, description, inputs and outputs for your action.
-
-See the [documentation](https://help.github.com/en/articles/metadata-syntax-for-github-actions)
-
-## Change the Code
-
-Most toolkit and CI/CD operations involve async operations so the action is run in an async function.
-
-```javascript
-import * as core from '@actions/core';
-...
-
-async function run() {
-  try { 
-      ...
-  } 
-  catch (error) {
-    core.setFailed(error.message);
-  }
-}
-
-run()
-```
-
-See the [toolkit documentation](https://github.com/actions/toolkit/blob/master/README.md#packages) for the various packages.
-
-## Publish to a distribution branch
-
-Actions are run from GitHub repos so we will checkin the packed dist folder. 
-
-Then run [ncc](https://github.com/zeit/ncc) and push the results:
-```bash
-$ npm run package
-$ git add dist
-$ git commit -a -m "prod dependencies"
-$ git push origin releases/v1
-```
-
-Note: We recommend using the `--license` option for ncc, which will create a license file for all of the production node modules used in your project.
-
-Your action is now published! :rocket: 
-
-See the [versioning documentation](https://github.com/actions/toolkit/blob/master/docs/action-versioning.md)
-
-## Validate
-
-You can now validate the action by referencing `./` in a workflow in your repo (see [test.yml](.github/workflows/test.yml))
-
-```yaml
-uses: ./
-with:
-  milliseconds: 1000
-```
-
-See the [actions tab](https://github.com/actions/typescript-action/actions) for runs of this action! :rocket:
-
-## Usage:
-
-After testing you can [create a v1 tag](https://github.com/actions/toolkit/blob/master/docs/action-versioning.md) to reference the stable and latest V1 action
