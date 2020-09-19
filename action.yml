@@ -4,20 +4,74 @@ author: 'Mapped <info@mapped.com>'
 
 inputs:
   baseVersion:
-    description: 'The base version of this repo. This value must be manually updated when the base version is incremented.'
+    description: 'The base version of this repo. This value must be manually updated following a release tag.'
     required: true
-  branchMappings:
-    description: 'Used for mapping untagged branches to tag names, such as main:latest.'
+  dockerImage:
+    description: 'The name of the docker image to produce tags for. If omitted, no docker tags will be produced.'
     required: false
-    default: "main:latest"
+    default: ""
+  gitHubToken:
+    description: 'The GITHUB_TOKEN value. Required to produce latest tags.'
+    required: false
+    default: ""
+  branchMappings:
+    description: 'Used for mapping untagged branches to tag names, such as main:edge.'
+    required: false
+    default: "main:edge"
   prereleasePrefix:
-    description: 'The <pre-release> prefix on an untagged SEMVER'
+    description: 'The <pre-release> prefix on an untagged run.'
     required: false
     default: "prerelease"
   versionFile:
-    description: 'The filename where the full SEMVER and commit SHA should be written'
+    description: 'A filename where the full SEMVER and commit SHA will be written.'
     required: false
     default: "VERSION"
+
+outputs:
+  ver_major:
+    description: Major version portion of the SEMVER
+  ver_minor:
+    description: Minor version portion of the SEMVER
+  ver_patch:
+    description: Patch version portion of the SEMVER
+  ver_preRelease:
+    description: Pre-release portion of the SEMVER
+  ver_metadata:
+    description: Metadata portion of the SEMVER
+  ver_buildNumber:
+    description: The current build number
+  ver_created:
+    description: ISO8601 datetime stamp of when the build was run
+  ver_tag:
+    description: The version tag
+  ver_semVer:
+    description: The full SEMVER (including any pre-release info and all metadata)
+  ver_semVerNoMeta:
+    description: The SEMVER without any metadata (including any pre-release info)
+
+  docker_tags:
+    description: A list of docker tags that can be passed to docker/build-push-action@v2
+  docker_push:
+    description: A true/false flag that can be passed to docker/build-push-action@v2
+
+  oci_title:
+    description: The org.opencontainers.image.title label
+  oci_description:
+    description: The org.opencontainers.image.description label
+  oci_url:
+    description: The org.opencontainers.image.url label
+  oci_source:
+    description: The org.opencontainers.image.source label
+  oci_version:
+    description: The org.opencontainers.image.version label
+  oci_created:
+    description: The org.opencontainers.image.created label
+  oci_revision:
+    description: The org.opencontainers.image.revision label
+  oci_licenses:
+    description: The org.opencontainers.image.licenses label
+  oci_labels:
+    description: The new-line separated list of OCI labels that can be passed to docker/build-push-action@v2
 
 runs:
   using: 'node12'

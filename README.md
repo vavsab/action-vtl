@@ -1,73 +1,139 @@
 <p align="center">
-  <a href="https://github.com/mapped/action-semver/actions"><img alt="action-semver status" src="https://github.com/mapped/action-semver/workflows/build-test/badge.svg"></a>
+  <a href="https://github.com/mapped/action-version/actions"><img alt="action-semver status" src="https://github.com/mapped/action-version/workflows/build-test/badge.svg"></a>
 </p>
 
-# GitHub Action for Consistent SEMVERs
+# GitHub Action for Consistent Versioning, Taging, and Labeleling of Builds
+This GitHub Action creates consistent versioning, tagging, and labels for use in package/assembly versions and docker images.
+
+## Rule #1
+The most important rule of using this action is that you MUST bump the `baseVersion` input in your *first* commit after creating a release tag. Not doing this will have you posting pre-release packages/images for the same version that has been released, but after that release ... and I'm sure hilarity will ensue.
+
+**Why not have another action that bumps the base version in all .yml files after a release tag is created?**
+Mostly because we have no idea which tuple of your base version needs to be bumped. Is the next milestone a major bump? Minor bump? Patch bump? Also, do you keep that in an environment variable? Secret? Directly in the yml passed to this action? In the yml as an `environment` option which is then passed to this version? ... I could go on, but I'll just refer back to Rule #1.
+
+## Versioning
+| Event           | Ref                           | Commit SHA | Base Ver | Run # | `${{ ver_semVer }}`                                    | `${{ ver_tag }}` |
+|-----------------|-------------------------------|------------|----------|-------|--------------------------------------------------------|------------------|
+| `schedule`      |                               |            | `1.2.3`  | `99`  | `1.2.3-prerelease.99+20200919T202359087Z`              | `nightly`        |
+| `pull_request`  | `refs/pull/2/merge`           | `a123b570` | `1.2.3`  | `99`  | `1.2.3-prerelease.99+20200919T202359087Z.sha-a123b570` | `pr-2`           |
+| `push`          | `refs/heads/<default_branch>` | `676cae2a` | `1.2.3`  | `99`  | `1.2.3-prerelease.99+20200919T202359087Z.sha-676cae2a` | `edge`           |
+| `push`          | `refs/heads/dev`              | `cf202579` | `1.2.3`  | `99`  | `1.2.3-prerelease.99+20200919T202359087Z.sha-cf202579` | `dev`            |
+| `push`          | `refs/heads/my/branch`        | `a5df6872` | `1.2.3`  | `99`  | `1.2.3-prerelease.99+20200919T202359087Z.sha-a5df6872` | `my/branch`      |
+| `push tag`      | `refs/tags/v1.2.3`            |            | `1.2.3`  | `99`  | `1.2.3+20200919T202359087Z.sha-a8cb3d0e`               | `v1.2.3`         |
+| `push tag`      | `refs/tags/v1.2.3-alpha.1`    |            | `1.2.3`  | `99`  | `1.2.3-alpha.1+20200919T202359087Z.sha-a8cb3d0e`       | `v1.2.3-alpha.1` |
+
+## Docker Tags
+Borrowed logic from the [docker/build-push-action](https://github.com/docker/build-push-action/blob/master/README.md#complete-workflow) and [Docker Tagging: Best practices for tagging and versioning docker images](https://stevelasker.blog/2018/03/01/docker-tagging-best-practices-for-tagging-and-versioning-docker-images/) *(both of which are worth reading)*, this action also produces docker tags and a push flag that are for use in a subsequent Docker build or push.
+
+| Event           | Ref                           | Commit SHA | `${{ docker_tag }}`           | `${{ docker_push }}` |
+|-----------------|-------------------------------|------------|-------------------------------|----------------------|
+| `schedule`      |                               |            | `nightly`                     |         true         |
+| `pull_request`  | `refs/pull/2/merge`           | `a123b57`  | `pr-2`                        |         false        |
+| `push`          | `refs/heads/<default_branch>` | `676cae2`  | `sha-676cae2`, `edge`         |         true         |
+| `push`          | `refs/heads/dev`              | `cf20257`  | `sha-cf20257`, `dev`          |         true         |
+| `push`          | `refs/heads/my/branch`        | `a5df687`  | `sha-a5df687`, `my-branch`    |         true         |
+| `push tag`      | `refs/tags/v1.2.3`            |            | `1.2.3`, `1.2`, `1`, `latest` |         true         |
+| `push tag`      | `refs/tags/v1.2.3-alpha.1`    |            | `1.2.3-alpha.1`               |         true         |
+
+**NOTE**: the `latest` docker tag is only added if the **release** repo tag is actually the highest SEMVER tag that exists for the repo. This ensures that a patch release of v1.2.3 will not steal the latest tag from v2.1.7. No `latest` docker tag is created for a pre-release repo tag.
+
+## Open Container Image Format Labels
+This action also produces [OCI Image Format Specification](https://github.com/opencontainers/image-spec/blob/master/annotations.md) labels for use in a subsequent Docker build or push. These labels are produced from repository information and generated version information to provide, as an example, for this repository this action produces:
+```bash
+steps.vtl.outputs.oci_title="action-vtl"
+steps.vtl.outputs.oci_description="GitHub Action for establishing a consistent semver"
+steps.vtl.outputs.oci_url="https://github.com/mapped/action-vtl"
+steps.vtl.outputs.oci_source="https://github.com/mapped/action-vtl.git"
+steps.vtl.outputs.oci_version="1.2.3-prerelease.21+20200919T205832346Z.sha-caed088d"
+steps.vtl.outputs.oci_created="2020-09-19T20:58:32.346Z"
+steps.vtl.outputs.oci_revision="caed088d0624b0dcb22cdf31b70ff0daff4c10d1"
+steps.vtl.outputs.oci_licenses="MIT"
+steps.vtl.outputs.oci_labels="org.opencontainers.image.title=action-vtl
+                org.opencontainers.image.description=GitHub Action for establishing a consistent semver
+                org.opencontainers.image.url=https://github.com/mapped/action-vtl
+                org.opencontainers.image.source=https://github.com/mapped/action-vtl.git
+                org.opencontainers.image.version=1.2.3-prerelease.21+20200919T205832346Z.sha-caed088d
+                org.opencontainers.image.created=2020-09-19T20:58:32.346Z
+                org.opencontainers.image.revision=caed088d0624b0dcb22cdf31b70ff0daff4c10d1
+                org.opencontainers.image.licenses=MIT"
+```
+*(These outputs are not shown in the examples below for brevity)*
 
 ## Usage:
 ```yml
-  - uses: mapped/action-semver@v0.1.0
+  - uses: mapped/action-vtl@v0.2.0
     with:
       baseVersion: '1.2.3'
 ```
 
-### Options
- - **baseVersion** - The base version of this repo. This value must be manually updated when the base version is incremented.
- - **branchMappings** - Used for mapping untagged branches to tag names. Mappings are one per line, each as `branch:target_name`.
-   - Optional, default = `main:latest`
- - **prereleasePrefix** - The <pre-release> prefix on an untagged SEMVER.
-   - Optional, default = `prerelease`
- - **versionFile** - The filename where the full SEMVER and commit SHA should be written.
-   - Optional, default `VERSION`
+### Inputs
+The following inputs can be passed to this action as `step.with` keys:
 
-## Capabilities
-This GitHub Action creates consistent SEMVER and tag environment variables with a few simple rules:
- 1. If the Action was triggered by the creation of a tag, the tag's SEMVER is used
- 2. If the Action was triggered by a push, the SEMVER passed to this action is augmented with a pre-release and build number, and the tag is either the branch name or a mapped value _(for example `main` can be mapped to `latest`)
- 3. If the Action was triggered by a PR, the SEMVER passed to this action is augmented with a pre-release and build number, and the tag is set to `merge`
+| Name                | Type    | Description                        |
+|---------------------|---------|------------------------------------|
+| `baseVersion`       | String  | The base version of this repo. **This value must be manually updated following a release tag.** |
+| `dockerImage`       | String  | The name of the docker image to produce tags for. If omitted, no docker tags will be produced. (default ``) |
+| `gitHubToken`       | String  | The GITHUB_TOKEN value. Required to produce latest tags. (default ``) |
+| `branchMappings`    | List    | Used for mapping untagged branches to tag names. Mappings are one per line, each as `branch:target_name`. (default `main:edge`) |
+| `prereleasePrefix`  | String  | The <pre-release> prefix on an untagged run. (default `prerelease`) |
+| `versionFile`       | String  | A filename where the full SEMVER and commit SHA will be written. (default `VERSION`) |
 
-## 1. Release Tag Created
+## Examples:
+
+### 1. Release Tag Created
 With the following input:
   - Action run# 23
   - Action YML:
     ```yml
-      - uses: mapped/action-semver
+      - uses: mapped/action-version
+        id: vtl
         with:
           baseVersion: '1.2.3'
+          dockerImage: 'owner/container-name'
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           branchMappings: |
             main:latest
           prereleasePrefix: 'prerelease'
           versionFile: 'VERSION'
     ```
   - Last commit in the tag: `a8cb3d0eae1f1a064896493f4cf63dafc17bafcf`
-  - `v3.4.5-alpha.1` **release tag is created**
+  - `v1.3.5` **release tag is created**
 
-This action will produce the following environment variables:
+This action will produce the following output variables:
 ```bash
-VERSION_TAG=v3.4.5-alpha.1
-SEMVER=3.4.5-alpha.1+20200918T041126920Z.a8cb3d0e
-SEMVER_MAJOR=3
-SEMVER_MINOR=4
-SEMVER_PATCH=5
-SEMVER_PRERELEASE=alpha.1
-SEMVER_BUILD=20200918T041126920Z.a8cb3d0e
+steps.vtl.outputs.ver_major=1
+steps.vtl.outputs.ver_minor=3
+steps.vtl.outputs.ver_patch=5
+steps.vtl.outputs.ver_preRelease=''
+steps.vtl.outputs.ver_metadata='20200919T202359087Z.sha-a8cb3d0e'
+steps.vtl.outputs.ver_buildNumber='23'
+steps.vtl.outputs.ver_created='2020-09-19T20:23:59.087Z'
+steps.vtl.outputs.ver_tag='v1.3.5'
+steps.vtl.outputs.ver_semVer='1.3.5+20200919T202359087Z.sha-a8cb3d0e'
+steps.vtl.outputs.ver_semVerNoMeta='1.3.5'
+
+steps.vtl.outputs.docker_tags='owner/container-name:v1.3.5,owner/container-name:v1,owner/container-name:v1.3'
+steps.vtl.outputs.docker_push='true'
 ```
 
 and create a `VERSION` file with the contents:
 ```
-3.4.5-alpha.1+20200918T041126920Z.a8cb3d0e
+1.3.5+20200919T202359087Z.sha-a8cb3d0e
 ```
 
 _Note that the `20200918T041126920Z` portions are UTC datetime strings representing the time the action was run._
 
-## 2a. Push to a Mapped Branch
+### 2a. Push to a Mapped Branch
 With the following input:
   - Action run# 23
   - Action YML:
     ```yml
-      - uses: mapped/action-semver
+      - uses: mapped/action-version
+        id: vtl
         with:
           baseVersion: '1.2.3'
+          dockerImage: 'owner/container-name'
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           branchMappings: |
             main:latest
           prereleasePrefix: 'prerelease'
@@ -75,15 +141,21 @@ With the following input:
     ```
   - **Push to `main` branch** with a commit hash of `a8cb3d0eae1f1a064896493f4cf63dafc17bafcf`
 
-This action will produce the following environment variables:
+This action will produce the following output variables:
 ```bash
-VERSION_TAG=latest
-SEMVER=1.2.3-prerelease.23+20200918T041126920Z.a8cb3d0e
-SEMVER_MAJOR=1
-SEMVER_MINOR=2
-SEMVER_PATCH=3
-SEMVER_PRERELEASE=prerelease.23
-SEMVER_BUILD=20200918T041126920Z.a8cb3d0e
+steps.vtl.outputs.ver_major=1
+steps.vtl.outputs.ver_minor=2
+steps.vtl.outputs.ver_patch=3
+steps.vtl.outputs.ver_preRelease='prerelease.23'
+steps.vtl.outputs.ver_metadata='20200919T202219571Z.sha-a8cb3d0e'
+steps.vtl.outputs.ver_buildNumber='23'
+steps.vtl.outputs.ver_created='2020-09-19T20:22:19.571Z'
+steps.vtl.outputs.ver_tag='edge'
+steps.vtl.outputs.ver_semVer='1.2.3-prerelease.23+20200919T202219571Z.sha-a8cb3d0e'
+steps.vtl.outputs.ver_semVerNoMeta='1.2.3-prerelease.23'
+
+steps.vtl.outputs.docker_tags='owner/container-name:edge,owner/container-name:sha-a8cb3d0e'
+steps.vtl.outputs.docker_push='true'
 ```
 
 and create a `VERSION` file with the contents:
@@ -91,30 +163,39 @@ and create a `VERSION` file with the contents:
 1.2.3-prerelease.23+20200918T041126920Z.a8cb3d0e
 ```
 
-## 2b. Push to an Unmapped Branch
+### 2b. Push to an Unmapped Branch
 With the following input:
   - Action run# 23
   - Action YML:
     ```yml
-      - uses: mapped/action-semver
+      - uses: mapped/action-version
+        id: vtl
         with:
           baseVersion: '1.2.3'
+          dockerImage: 'owner/container-name'
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           branchMappings: |
             main:latest
           prereleasePrefix: 'prerelease'
           versionFile: 'VERSION'
     ```
-  - **Push to `my-feature-work` branch** with a commit hash of `a8cb3d0eae1f1a064896493f4cf63dafc17bafcf`
+  - **Push to `my-working-branch` branch** with a commit hash of `a8cb3d0eae1f1a064896493f4cf63dafc17bafcf`
 
-This action will produce the following environment variables:
+This action will produce the following output variables:
 ```bash
-VERSION_TAG=my-feature-work
-SEMVER=1.2.3-prerelease.23+20200918T041126920Z.a8cb3d0e
-SEMVER_MAJOR=1
-SEMVER_MINOR=2
-SEMVER_PATCH=3
-SEMVER_PRERELEASE=prerelease.23
-SEMVER_BUILD=20200918T041126920Z.a8cb3d0e
+steps.vtl.outputs.ver_major=1
+steps.vtl.outputs.ver_minor=2
+steps.vtl.outputs.ver_patch=3
+steps.vtl.outputs.ver_preRelease='prerelease.23'
+steps.vtl.outputs.ver_metadata='20200919T201859527Z.sha-a8cb3d0e'
+steps.vtl.outputs.ver_buildNumber='23'
+steps.vtl.outputs.ver_created='2020-09-19T20:18:59.527Z'
+steps.vtl.outputs.ver_tag='my-working-branch'
+steps.vtl.outputs.ver_semVer='1.2.3-prerelease.23+20200919T201859527Z.sha-a8cb3d0e'
+steps.vtl.outputs.ver_semVerNoMeta='1.2.3-prerelease.23'
+
+steps.vtl.outputs.docker_tags='owner/container-name:my-working-branch,owner/container-name:sha-a8cb3d0e'
+steps.vtl.outputs.docker_push='true'
 ```
 
 and create a `VERSION` file with the contents:
@@ -122,14 +203,17 @@ and create a `VERSION` file with the contents:
 1.2.3-prerelease.23+20200918T041126920Z.a8cb3d0e
 ```
 
-## 3. Pull Request
+### 3. Pull Request
 With the following input:
   - Action run# 23
   - Action YML:
     ```yml
-      - uses: mapped/action-semver
+      - uses: mapped/action-version
+        id: vtl
         with:
           baseVersion: '1.2.3'
+          dockerImage: 'owner/container-name'
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
           branchMappings: |
             main:latest
           prereleasePrefix: 'prerelease'
@@ -137,15 +221,21 @@ With the following input:
     ```
   - **Pull Request** with a head commit hash of `a8cb3d0eae1f1a064896493f4cf63dafc17bafcf`
 
-This action will produce the following environment variables:
+This action will produce the following output variables:
 ```yml
-VERSION_TAG=merge
-SEMVER=1.2.3-prerelease.23+20200918T041126920Z.a8cb3d0e
-SEMVER_MAJOR=1
-SEMVER_MINOR=2
-SEMVER_PATCH=3
-SEMVER_PRERELEASE=prerelease.23
-SEMVER_BUILD=20200918T041126920Z.a8cb3d0e
+steps.vtl.outputs.ver_major=1
+steps.vtl.outputs.ver_minor=2
+steps.vtl.outputs.ver_patch=3
+steps.vtl.outputs.ver_preRelease='prerelease.23'
+steps.vtl.outputs.ver_metadata='20200919T201457882Z.sha-a8cb3d0e'
+steps.vtl.outputs.ver_buildNumber='23'
+steps.vtl.outputs.ver_created='2020-09-19T20:14:57.882Z'
+steps.vtl.outputs.ver_tag='pr-37'
+steps.vtl.outputs.ver_semVer='1.2.3-prerelease.17+20200919T201457882Z.sha-a8cb3d0e'
+steps.vtl.outputs.ver_semVerNoMeta='1.2.3-prerelease.23'
+
+steps.vtl.outputs.docker_tags='owner/container-name:pr-37'
+steps.vtl.outputs.docker_push='false'
 ```
 
 and create a `VERSION` file with the contents:
@@ -169,18 +259,25 @@ Run the tests :heavy_check_mark:
 ```bash
 $ npm test
 
- PASS  __tests__/main.test.ts
-  √ invalid semver (19ms)
-  √ no ref
+  √ invalid semver (21ms)
+  √ bad tag semver (1ms)
   √ push on mapped branch (1ms)
   √ push on unmapped branch (1ms)
   √ tag 1
-  √ tag 2
-  √ pr (1ms)
+  √ tag 2 (1ms)
+  √ pr
+  √ compareSemvers basic (1ms)
+  √ compareSemvers with pre-release specifiers (11ms)
+  √ compareSemvers with metadata (1ms)
+  √ compareSemvers with pre-release and metadata
+  √ docker info - push (1ms)
+  √ docker info - tag
+  √ docker info - pr
 
 Test Suites: 1 passed, 1 total
+Tests:       14 passed, 14 total
 Snapshots:   0 total
-Time:        2.439s, estimated 3s
+Time:        4.094s
 Ran all test suites.
 ...
 ```

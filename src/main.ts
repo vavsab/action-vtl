@@ -1,14 +1,45 @@
 import * as core from '@actions/core';
-import {SemVer} from './semver';
+import * as github from '@actions/github';
+import {SemVer} from './version';
+import {GetOCI} from './oci';
+import {GetDockerInfo} from './docker';
 import fs from 'fs';
 
-function logAndExport(key: string, value: string): void {
-  core.info(`${key}=${value}`);
-  core.exportVariable(key, value);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isObject(obj: any): boolean {
+  return obj === Object(obj);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function logAndOutputObject(key: string, value: any): void {
+  if (value == null) {
+    return;
+  }
+
+  if (isObject(value)) {
+    // Object
+    if (Array.isArray(value)) {
+      throw new Error('Array types are not supported');
+    }
+    // Recurse for each property
+    for (const [objKey, objValue] of Object.entries(value)) {
+      logAndOutputObject(`${key}_${objKey}`, objValue);
+    }
+  } else {
+    // Primative type
+    // TODO: Would be nice to output 'steps.<action_id>.outputs.<key>=<value', but context doesn't seem to give us the action id
+    const strValue = value.toString();
+    core.info(`${key}=${strValue}`);
+    core.setOutput(key, strValue);
+  }
 }
 
 async function run(): Promise<void> {
   try {
+    // Log the full context
+    // NOTE: Debug output can be enabled by setting the secret ACTIONS_STEP_DEBUG=true
+    core.debug(JSON.stringify(github.context));
+
     // Get the base version
     const baseVer = core.getInput('baseVersion', {required: true});
 
@@ -23,34 +54,25 @@ async function run(): Promise<void> {
     // Get the pre-release prefix
     const preReleasePrefix = core.getInput('prereleasePrefix') ?? '';
 
-    // Action Env variables
-    const runNo = process.env['GITHUB_RUN_NUMBER'];
-    if (runNo == null) {
-      core.setFailed(`GITHUB_RUN_NUMBER is not set`);
-      return;
-    }
-    const sha = process.env['GITHUB_SHA'];
-    if (sha == null) {
-      core.setFailed(`GITHUB_SHA is not set`);
-      return;
-    }
-    const ref = process.env['GITHUB_REF'];
-    if (ref == null) {
-      core.setFailed(`GITHUB_REF is not set`);
-      return;
-    }
+    // Get the docker image name prefix
+    const dockerImage = core.getInput('dockerImage') ?? '';
+
+    // Get the github token
+    const gitHubToken = core.getInput('gitHubToken') ?? '';
 
     // Process the input
-    const verInfo = await SemVer(baseVer, branchMappings, preReleasePrefix, runNo, sha, ref);
+    const verInfo = await SemVer(baseVer, branchMappings, preReleasePrefix, github.context);
+    const ociInfo = await GetOCI(verInfo, github.context);
 
-    // Log and push the values back to the workflow runner environment
-    logAndExport('VERSION_TAG', verInfo.tag);
-    logAndExport('SEMVER', verInfo.semVer);
-    logAndExport('SEMVER_MAJOR', verInfo.major.toString());
-    logAndExport('SEMVER_MINOR', verInfo.minor.toString());
-    logAndExport('SEMVER_PATCH', verInfo.patch.toString());
-    logAndExport('SEMVER_PRERELEASE', verInfo.preRelease);
-    logAndExport('SEMVER_BUILD', verInfo.build);
+    // Log and push the values back to the workflow runner
+    logAndOutputObject('ver', verInfo);
+    logAndOutputObject('oci', ociInfo);
+
+    // Add docker tags
+    if (dockerImage != null && dockerImage.length > 0) {
+      const dockerInfo = await GetDockerInfo(dockerImage, verInfo, github.context, gitHubToken);
+      logAndOutputObject('docker', dockerInfo);
+    }
 
     // Write out the version file
     const verFile = core.getInput('versionFile');
