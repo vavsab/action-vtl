@@ -87,7 +87,7 @@ test('push on mapped branch', async () => {
     metadata: expect.stringContaining(goodSha8),
     buildNumber: goodRunNo[0].toString(),
     tag: "edge",
-    semVer: expect.stringMatching(new RegExp(expSemVerNoMeta + "\+.*\." + goodSha8)),
+    semVer: expect.stringMatching(new RegExp(expSemVerNoMeta + "\\+.*\\.sha-" + goodSha8)),
     semVerNoMeta: expSemVerNoMeta
   });
 })
@@ -102,7 +102,7 @@ test('push on unmapped branch', async () => {
     metadata: expect.stringContaining(goodSha8),
     buildNumber: goodRunNo[1].toString(),
     tag: goodRefAndEvent[2].ref.split('/').pop(),
-    semVer: expect.stringMatching(new RegExp(expSemVerNoMeta + "\+.*\." + goodSha8)),
+    semVer: expect.stringMatching(new RegExp(expSemVerNoMeta + "\\+.*\\.sha-" + goodSha8)),
     semVerNoMeta: expSemVerNoMeta
   });
 })
@@ -117,7 +117,7 @@ test('tag 1', async () => {
     metadata: expect.stringContaining(goodSha8),
     buildNumber: goodRunNo[0].toString(),
     tag: goodRefAndEvent[5].ref.split('/').pop(),
-    semVer: expect.stringMatching(new RegExp(expSemVerNoMeta + "\+.*\." + goodSha8)),
+    semVer: expect.stringMatching(new RegExp(expSemVerNoMeta + "\\+.*\\.sha-" + goodSha8)),
     semVerNoMeta: expSemVerNoMeta
   });
 })
@@ -132,7 +132,7 @@ test('tag 2', async () => {
     metadata: expect.stringContaining(goodSha8),
     buildNumber: goodRunNo[1].toString(),
     tag: goodRefAndEvent[6].ref.split('/').pop(),
-    semVer: expect.stringMatching(new RegExp(expSemVerNoMeta + "\+.*\." + goodSha8)),
+    semVer: expect.stringMatching(new RegExp(expSemVerNoMeta + "\\+.*\\.sha-" + goodSha8)),
     semVerNoMeta: expSemVerNoMeta
   });
 })
@@ -147,7 +147,7 @@ test('pr', async () => {
     metadata: expect.stringContaining(goodSha8),
     buildNumber: goodRunNo[1].toString(),
     tag: "pr-37",
-    semVer: expect.stringMatching(new RegExp(expSemVerNoMeta + "\+.*\." + goodSha8)),
+    semVer: expect.stringMatching(new RegExp(expSemVerNoMeta + "\\+.*\\.sha-" + goodSha8)),
     semVerNoMeta: expSemVerNoMeta
   });
 })

@@ -22,92 +22,87 @@ export async function SemVer(
   preReleasePrefix: string,
   context: Context,
 ): Promise<Version> {
-  return new Promise(resolve => {
-    // Validate the base SEMVER
-    const baseVerParts = baseVer.match(SEMVER_REGEX);
-    if (baseVerParts == null || baseVerParts.length < 3) {
-      throw new Error(`base-version of "${baseVer}" is not a valid SEMVER`);
+  // Validate the base SEMVER
+  const baseVerParts = baseVer.match(SEMVER_REGEX);
+  if (baseVerParts == null || baseVerParts.length < 3) {
+    throw new Error(`base-version of "${baseVer}" is not a valid SEMVER`);
+  }
+
+  // Get the pre-release prefix
+  if (preReleasePrefix.length > 0) {
+    preReleasePrefix += '.';
+  }
+
+  // Unless a tag changes it, the base ver is what we work from
+  const created = new Date().toISOString();
+  const ver: Version = {
+    major: parseInt(baseVerParts[1] ?? '0', 10),
+    minor: parseInt(baseVerParts[2] ?? '0', 10),
+    patch: parseInt(baseVerParts[3] ?? '0', 10),
+    preRelease: preReleasePrefix + context.runNumber.toString(),
+    metadata: `${created.replace(/[.:-]/g, '')}.sha-${context.sha.substring(0, 8)}`,
+    buildNumber: context.runNumber.toString(),
+    created,
+    tag: '',
+    semVer: '',
+    semVerNoMeta: '',
+  };
+
+  // Update the tag and version based on the event name and ref values
+  if (context.ref.startsWith('refs/tags')) {
+    // The ref is a tag, parse it as a SEMVER
+    const tagName = context.ref.substring('refs/tags/'.length);
+
+    // Parse and validate the tag
+    const tagParts = tagName.match(SEMVER_REGEX);
+    if (tagParts == null || tagParts.length === 0) {
+      throw new Error(`Tag of "${tagName}" is not a valid SEMVER`);
     }
 
-    // Get the pre-release prefix
-    if (preReleasePrefix.length > 0) {
-      preReleasePrefix += '.';
-    }
+    // Use the tag
+    ver.tag = tagName.toLowerCase();
 
-    // Unless a tag changes it, the base ver is what we work from
-    const created = new Date().toISOString();
-    const ver: Version = {
-      major: parseInt(baseVerParts[1] ?? '0', 10),
-      minor: parseInt(baseVerParts[2] ?? '0', 10),
-      patch: parseInt(baseVerParts[3] ?? '0', 10),
-      preRelease: preReleasePrefix + context.runNumber.toString(),
-      metadata: `${created.replace(/[.:-]/g, '')}.sha-${context.sha.substring(0, 8)}`,
-      buildNumber: context.runNumber.toString(),
-      created,
-      tag: '',
-      semVer: '',
-      semVerNoMeta: '',
-    };
+    // Tag wins for everything except metadata
+    ver.major = parseInt(tagParts[1] ?? '0', 10);
+    ver.minor = parseInt(tagParts[2] ?? '0', 10);
+    ver.patch = parseInt(tagParts[3] ?? '0', 10);
+    ver.preRelease = tagParts[4] ?? '';
+  } else if (context.eventName === 'schedule') {
+    // Scheduled builds just get a nightly tag
+    ver.tag = 'nightly';
+  } else if (context.eventName === 'pull_request') {
+    // PR gets a simple 'pr-#' tag
+    ver.tag = `pr-${context.ref.split('/')[2]}`;
+  } else if (context.ref.startsWith('refs/heads')) {
+    // Get the branch name
+    const branchName = context.ref.substring('refs/heads/'.length).toLowerCase().replace('/', '-');
 
-    // Update the tag and version based on the event name and ref values
-    if (context.ref.startsWith('refs/tags')) {
-      // The ref is a tag, parse it as a SEMVER
-      const tagName = context.ref.substring('refs/tags/'.length);
-
-      // Parse and validate the tag
-      const tagParts = tagName.match(SEMVER_REGEX);
-      if (tagParts == null || tagParts.length === 0) {
-        throw new Error(`Tag of "${tagName}" is not a valid SEMVER`);
+    // Handle any mappings
+    if (branchMappings.has(branchName)) {
+      const targetTag = branchMappings.get(branchName);
+      if (!targetTag) {
+        throw new Error("Target tag existed and then it didn't");
       }
-
-      // Use the tag
-      ver.tag = tagName.toLowerCase();
-
-      // Tag wins for everything except metadata
-      ver.major = parseInt(tagParts[1] ?? '0', 10);
-      ver.minor = parseInt(tagParts[2] ?? '0', 10);
-      ver.patch = parseInt(tagParts[3] ?? '0', 10);
-      ver.preRelease = tagParts[4] ?? '';
-    } else if (context.eventName === 'schedule') {
-      // Scheduled builds just get a nightly tag
-      ver.tag = 'nightly';
-    } else if (context.eventName === 'pull_request') {
-      // PR gets a simple 'pr-#' tag
-      ver.tag = `pr-${context.ref.split('/')[2]}`;
-    } else if (context.ref.startsWith('refs/heads')) {
-      // Get the branch name
-      const branchName = context.ref
-        .substring('refs/heads/'.length)
-        .toLowerCase()
-        .replace('/', '-');
-
-      // Handle any mappings
-      if (branchMappings.has(branchName)) {
-        const targetTag = branchMappings.get(branchName);
-        if (!targetTag) {
-          throw new Error("Target tag existed and then it didn't");
-        }
-        ver.tag = targetTag.toLowerCase();
-      } else {
-        ver.tag = branchName.toLowerCase();
-      }
+      ver.tag = targetTag.toLowerCase();
     } else {
-      throw new Error(`Unsupported event name (${context.eventName}) or ref (${context.ref})`);
+      ver.tag = branchName.toLowerCase();
     }
+  } else {
+    throw new Error(`Unsupported event name (${context.eventName}) or ref (${context.ref})`);
+  }
 
-    // Put the SEMVER together
-    ver.semVer = `${ver.major}.${ver.minor}.${ver.patch}`;
-    if (ver.preRelease.length > 0) {
-      ver.semVer += `-${ver.preRelease}`;
-    }
-    ver.semVerNoMeta = ver.semVer;
-    if (ver.metadata.length > 0) {
-      ver.semVer += `+${ver.metadata}`;
-    }
+  // Put the SEMVER together
+  ver.semVer = `${ver.major}.${ver.minor}.${ver.patch}`;
+  if (ver.preRelease.length > 0) {
+    ver.semVer += `-${ver.preRelease}`;
+  }
+  ver.semVerNoMeta = ver.semVer;
+  if (ver.metadata.length > 0) {
+    ver.semVer += `+${ver.metadata}`;
+  }
 
-    // Done
-    resolve(ver);
-  });
+  // Done
+  return ver;
 }
 
 /**

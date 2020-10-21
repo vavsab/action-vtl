@@ -29,54 +29,54 @@ export interface OCI {
 }
 
 export async function GetOCI(version: Version, context: Context): Promise<OCI> {
-  return new Promise(resolve => {
-    const payload = context.payload as KnownPayload;
+  const payload = context.payload as KnownPayload;
 
-    // Get the correct SPDX license ID
+  // Get the correct SPDX license ID
+  let spdxId = '';
+  if (payload.repository && payload.repository.license) {
     const license = (payload.repository.license as unknown) as License;
-    let spdxId = '';
     if (license != null) {
       spdxId = license.spdx_id;
     } else {
       spdxId = 'UNLICENSED';
     }
+  }
 
-    // Map the version and context to OCI properties
-    const oci: OCI = {
-      title: payload.repository.name,
-      description: payload.repository.description ?? '',
-      url: payload.repository.html_url,
-      source: payload.repository.clone_url,
-      version: version.semVer,
-      created: version.created,
-      revision: context.sha,
-      licenses: spdxId,
-      labels: '',
-    };
+  // Map the version and context to OCI properties
+  const oci: OCI = {
+    title: payload.repository.name,
+    description: payload.repository.description ?? '',
+    url: payload.repository.html_url,
+    source: payload.repository.clone_url,
+    version: version.semVer,
+    created: version.created,
+    revision: context.sha,
+    licenses: spdxId,
+    labels: '',
+  };
 
-    // Add the OCI labels, per: https://github.com/opencontainers/image-spec/blob/master/annotations.md
-    const labels = new Array<string>();
-    labels.push(`org.opencontainers.image.title=${payload.repository.name}`);
-    labels.push(`org.opencontainers.image.description=${payload.repository.description ?? ''}`);
-    labels.push(`org.opencontainers.image.url=${payload.repository.html_url}`);
-    labels.push(`org.opencontainers.image.source=${payload.repository.clone_url}`);
-    labels.push(`org.opencontainers.image.version=${version.semVer}`);
-    labels.push(`org.opencontainers.image.created=${version.created}`);
-    labels.push(`org.opencontainers.image.revision=${context.sha}`);
-    labels.push(`org.opencontainers.image.licenses=${spdxId}`);
+  // Add the OCI labels, per: https://github.com/opencontainers/image-spec/blob/master/annotations.md
+  const labels = new Array<string>();
+  labels.push(`org.opencontainers.image.title=${payload.repository.name}`);
+  labels.push(`org.opencontainers.image.description=${payload.repository.description ?? ''}`);
+  labels.push(`org.opencontainers.image.url=${payload.repository.html_url}`);
+  labels.push(`org.opencontainers.image.source=${payload.repository.clone_url}`);
+  labels.push(`org.opencontainers.image.version=${version.semVer}`);
+  labels.push(`org.opencontainers.image.created=${version.created}`);
+  labels.push(`org.opencontainers.image.revision=${context.sha}`);
+  labels.push(`org.opencontainers.image.licenses=${spdxId}`);
 
-    // Put the labels together, dropping any that don't have values
-    oci.labels = labels
-      .filter(label => {
-        const parts = label.split('=');
-        if (parts.length < 2 || parts[1].trim().length === 0) {
-          return false;
-        }
+  // Put the labels together, dropping any that don't have values
+  oci.labels = labels
+    .filter(label => {
+      const parts = label.split('=');
+      if (parts.length < 2 || parts[1].trim().length === 0) {
+        return false;
+      }
 
-        return true;
-      })
-      .join('\n');
+      return true;
+    })
+    .join('\n');
 
-    resolve(oci);
-  });
+  return oci;
 }

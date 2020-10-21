@@ -51,71 +51,69 @@ function GetDockerInfo(dockerImage, version, context, token) {
                 repo: context.repo.repo,
             });
         }
-        return new Promise(resolve => {
-            const tags = new Array();
-            let shouldPush = true;
-            // Add the version tag if it is not latest
-            if (version.tag !== 'latest') {
-                // Without any 'v' prefix
-                if (version_1.SEMVER_REGEX.test(version.tag) && version.tag.substring(0, 1).toLowerCase() === 'v') {
-                    tags.push(`${dockerImage}:${version.tag.substring(1)}`);
-                }
-                else {
-                    tags.push(`${dockerImage}:${version.tag}`);
-                }
+        const tags = new Array();
+        let shouldPush = true;
+        // Add the version tag if it is not latest
+        if (version.tag !== 'latest') {
+            // Without any 'v' prefix
+            if (version_1.SEMVER_REGEX.test(version.tag) && version.tag.substring(0, 1).toLowerCase() === 'v') {
+                tags.push(`${dockerImage}:${version.tag.substring(1)}`);
             }
-            // For any push we add a sha tag
-            if (context.eventName === 'push') {
-                tags.push(`${dockerImage}:sha-${context.sha.substring(0, 8)}`);
+            else {
+                tags.push(`${dockerImage}:${version.tag}`);
             }
-            // If the version's tag is a SEMVER, we need semver stable tags
-            const semVerParts = version.tag.match(version_1.SEMVER_REGEX);
-            if (semVerParts) {
-                // Is this a pre-release?
-                if (version.preRelease && version.preRelease.length > 0) {
-                    // Pre-release, only the full semver
-                    tags.push(`${dockerImage}:${version.semVerNoMeta}`);
-                }
-                else {
-                    // Not a pre-release, get all stable tags
-                    tags.push(`${dockerImage}:${version.major}`);
-                    tags.push(`${dockerImage}:${version.major}.${version.minor}`);
-                    tags.push(`${dockerImage}:${version.major}.${version.minor}.${version.patch}`);
-                    // Tagged build gets the 'latest' tag if it is the highest semver tag created
-                    if (releases) {
-                        // Look through all the releases for a newer tag
-                        let newest = true;
-                        for (const release of releases.data) {
-                            // Skip pre-releases
-                            if (release.prerelease) {
-                                continue;
-                            }
-                            if (version_1.compareSemvers(version.tag, release.tag_name) < 0) {
-                                // Found a newer tag that already existed
-                                newest = false;
-                                break;
-                            }
+        }
+        // For any push we add a sha tag
+        if (context.eventName === 'push') {
+            tags.push(`${dockerImage}:sha-${context.sha.substring(0, 8)}`);
+        }
+        // If the version's tag is a SEMVER, we need semver stable tags
+        const semVerParts = version.tag.match(version_1.SEMVER_REGEX);
+        if (semVerParts) {
+            // Is this a pre-release?
+            if (version.preRelease && version.preRelease.length > 0) {
+                // Pre-release, only the full semver
+                tags.push(`${dockerImage}:${version.semVerNoMeta}`);
+            }
+            else {
+                // Not a pre-release, get all stable tags
+                tags.push(`${dockerImage}:${version.major}`);
+                tags.push(`${dockerImage}:${version.major}.${version.minor}`);
+                tags.push(`${dockerImage}:${version.major}.${version.minor}.${version.patch}`);
+                // Tagged build gets the 'latest' tag if it is the highest semver tag created
+                if (releases) {
+                    // Look through all the releases for a newer tag
+                    let newest = true;
+                    for (const release of releases.data) {
+                        // Skip pre-releases
+                        if (release.prerelease) {
+                            continue;
                         }
-                        // If we didn't find a newer tag, add latest
-                        if (newest) {
-                            tags.push(`${dockerImage}:latest`);
+                        if (version_1.compareSemvers(version.tag, release.tag_name) < 0) {
+                            // Found a newer tag that already existed
+                            newest = false;
+                            break;
                         }
+                    }
+                    // If we didn't find a newer tag, add latest
+                    if (newest) {
+                        tags.push(`${dockerImage}:latest`);
                     }
                 }
             }
-            // PRs don't get pushed
-            if (context.eventName === 'pull_request') {
-                shouldPush = false;
-            }
-            // Remove duplicates tags
-            const uniqueTags = [...new Set(tags)];
-            // Put together the output
-            const dockerInfo = {
-                tags: uniqueTags.join(','),
-                push: shouldPush.toString(),
-            };
-            resolve(dockerInfo);
-        });
+        }
+        // PRs don't get pushed
+        if (context.eventName === 'pull_request') {
+            shouldPush = false;
+        }
+        // Remove duplicates tags
+        const uniqueTags = [...new Set(tags)];
+        // Put together the output
+        const dockerInfo = {
+            tags: uniqueTags.join(','),
+            push: shouldPush.toString(),
+        };
+        return dockerInfo;
     });
 }
 exports.GetDockerInfo = GetDockerInfo;
@@ -262,53 +260,53 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GetOCI = void 0;
 function GetOCI(version, context) {
+    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
-        return new Promise(resolve => {
-            var _a, _b;
-            const payload = context.payload;
-            // Get the correct SPDX license ID
+        const payload = context.payload;
+        // Get the correct SPDX license ID
+        let spdxId = '';
+        if (payload.repository && payload.repository.license) {
             const license = payload.repository.license;
-            let spdxId = '';
             if (license != null) {
                 spdxId = license.spdx_id;
             }
             else {
                 spdxId = 'UNLICENSED';
             }
-            // Map the version and context to OCI properties
-            const oci = {
-                title: payload.repository.name,
-                description: (_a = payload.repository.description) !== null && _a !== void 0 ? _a : '',
-                url: payload.repository.html_url,
-                source: payload.repository.clone_url,
-                version: version.semVer,
-                created: version.created,
-                revision: context.sha,
-                licenses: spdxId,
-                labels: '',
-            };
-            // Add the OCI labels, per: https://github.com/opencontainers/image-spec/blob/master/annotations.md
-            const labels = new Array();
-            labels.push(`org.opencontainers.image.title=${payload.repository.name}`);
-            labels.push(`org.opencontainers.image.description=${(_b = payload.repository.description) !== null && _b !== void 0 ? _b : ''}`);
-            labels.push(`org.opencontainers.image.url=${payload.repository.html_url}`);
-            labels.push(`org.opencontainers.image.source=${payload.repository.clone_url}`);
-            labels.push(`org.opencontainers.image.version=${version.semVer}`);
-            labels.push(`org.opencontainers.image.created=${version.created}`);
-            labels.push(`org.opencontainers.image.revision=${context.sha}`);
-            labels.push(`org.opencontainers.image.licenses=${spdxId}`);
-            // Put the labels together, dropping any that don't have values
-            oci.labels = labels
-                .filter(label => {
-                const parts = label.split('=');
-                if (parts.length < 2 || parts[1].trim().length === 0) {
-                    return false;
-                }
-                return true;
-            })
-                .join('\n');
-            resolve(oci);
-        });
+        }
+        // Map the version and context to OCI properties
+        const oci = {
+            title: payload.repository.name,
+            description: (_a = payload.repository.description) !== null && _a !== void 0 ? _a : '',
+            url: payload.repository.html_url,
+            source: payload.repository.clone_url,
+            version: version.semVer,
+            created: version.created,
+            revision: context.sha,
+            licenses: spdxId,
+            labels: '',
+        };
+        // Add the OCI labels, per: https://github.com/opencontainers/image-spec/blob/master/annotations.md
+        const labels = new Array();
+        labels.push(`org.opencontainers.image.title=${payload.repository.name}`);
+        labels.push(`org.opencontainers.image.description=${(_b = payload.repository.description) !== null && _b !== void 0 ? _b : ''}`);
+        labels.push(`org.opencontainers.image.url=${payload.repository.html_url}`);
+        labels.push(`org.opencontainers.image.source=${payload.repository.clone_url}`);
+        labels.push(`org.opencontainers.image.version=${version.semVer}`);
+        labels.push(`org.opencontainers.image.created=${version.created}`);
+        labels.push(`org.opencontainers.image.revision=${context.sha}`);
+        labels.push(`org.opencontainers.image.licenses=${spdxId}`);
+        // Put the labels together, dropping any that don't have values
+        oci.labels = labels
+            .filter(label => {
+            const parts = label.split('=');
+            if (parts.length < 2 || parts[1].trim().length === 0) {
+                return false;
+            }
+            return true;
+        })
+            .join('\n');
+        return oci;
     });
 }
 exports.GetOCI = GetOCI;
@@ -335,90 +333,85 @@ exports.compareSemvers = exports.SemVer = exports.SEMVER_REGEX = void 0;
 exports.SEMVER_REGEX = /(?<=^v?|\sv?)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[\da-z-]*[a-z-][\da-z-]*)(?:\.(?:0|[1-9]\d*|[\da-z-]*[a-z-][\da-z-]*))*))?(?:\+([\da-z-]+(?:\.[\da-z-]+)*))?(?=$|\s)/i;
 const NUMERIC_REGEX = /^\d+$/;
 function SemVer(baseVer, branchMappings, preReleasePrefix, context) {
+    var _a, _b, _c, _d, _e, _f, _g;
     return __awaiter(this, void 0, void 0, function* () {
-        return new Promise(resolve => {
-            var _a, _b, _c, _d, _e, _f, _g;
-            // Validate the base SEMVER
-            const baseVerParts = baseVer.match(exports.SEMVER_REGEX);
-            if (baseVerParts == null || baseVerParts.length < 3) {
-                throw new Error(`base-version of "${baseVer}" is not a valid SEMVER`);
+        // Validate the base SEMVER
+        const baseVerParts = baseVer.match(exports.SEMVER_REGEX);
+        if (baseVerParts == null || baseVerParts.length < 3) {
+            throw new Error(`base-version of "${baseVer}" is not a valid SEMVER`);
+        }
+        // Get the pre-release prefix
+        if (preReleasePrefix.length > 0) {
+            preReleasePrefix += '.';
+        }
+        // Unless a tag changes it, the base ver is what we work from
+        const created = new Date().toISOString();
+        const ver = {
+            major: parseInt((_a = baseVerParts[1]) !== null && _a !== void 0 ? _a : '0', 10),
+            minor: parseInt((_b = baseVerParts[2]) !== null && _b !== void 0 ? _b : '0', 10),
+            patch: parseInt((_c = baseVerParts[3]) !== null && _c !== void 0 ? _c : '0', 10),
+            preRelease: preReleasePrefix + context.runNumber.toString(),
+            metadata: `${created.replace(/[.:-]/g, '')}.sha-${context.sha.substring(0, 8)}`,
+            buildNumber: context.runNumber.toString(),
+            created,
+            tag: '',
+            semVer: '',
+            semVerNoMeta: '',
+        };
+        // Update the tag and version based on the event name and ref values
+        if (context.ref.startsWith('refs/tags')) {
+            // The ref is a tag, parse it as a SEMVER
+            const tagName = context.ref.substring('refs/tags/'.length);
+            // Parse and validate the tag
+            const tagParts = tagName.match(exports.SEMVER_REGEX);
+            if (tagParts == null || tagParts.length === 0) {
+                throw new Error(`Tag of "${tagName}" is not a valid SEMVER`);
             }
-            // Get the pre-release prefix
-            if (preReleasePrefix.length > 0) {
-                preReleasePrefix += '.';
-            }
-            // Unless a tag changes it, the base ver is what we work from
-            const created = new Date().toISOString();
-            const ver = {
-                major: parseInt((_a = baseVerParts[1]) !== null && _a !== void 0 ? _a : '0', 10),
-                minor: parseInt((_b = baseVerParts[2]) !== null && _b !== void 0 ? _b : '0', 10),
-                patch: parseInt((_c = baseVerParts[3]) !== null && _c !== void 0 ? _c : '0', 10),
-                preRelease: preReleasePrefix + context.runNumber.toString(),
-                metadata: `${created.replace(/[.:-]/g, '')}.sha-${context.sha.substring(0, 8)}`,
-                buildNumber: context.runNumber.toString(),
-                created,
-                tag: '',
-                semVer: '',
-                semVerNoMeta: '',
-            };
-            // Update the tag and version based on the event name and ref values
-            if (context.ref.startsWith('refs/tags')) {
-                // The ref is a tag, parse it as a SEMVER
-                const tagName = context.ref.substring('refs/tags/'.length);
-                // Parse and validate the tag
-                const tagParts = tagName.match(exports.SEMVER_REGEX);
-                if (tagParts == null || tagParts.length === 0) {
-                    throw new Error(`Tag of "${tagName}" is not a valid SEMVER`);
+            // Use the tag
+            ver.tag = tagName.toLowerCase();
+            // Tag wins for everything except metadata
+            ver.major = parseInt((_d = tagParts[1]) !== null && _d !== void 0 ? _d : '0', 10);
+            ver.minor = parseInt((_e = tagParts[2]) !== null && _e !== void 0 ? _e : '0', 10);
+            ver.patch = parseInt((_f = tagParts[3]) !== null && _f !== void 0 ? _f : '0', 10);
+            ver.preRelease = (_g = tagParts[4]) !== null && _g !== void 0 ? _g : '';
+        }
+        else if (context.eventName === 'schedule') {
+            // Scheduled builds just get a nightly tag
+            ver.tag = 'nightly';
+        }
+        else if (context.eventName === 'pull_request') {
+            // PR gets a simple 'pr-#' tag
+            ver.tag = `pr-${context.ref.split('/')[2]}`;
+        }
+        else if (context.ref.startsWith('refs/heads')) {
+            // Get the branch name
+            const branchName = context.ref.substring('refs/heads/'.length).toLowerCase().replace('/', '-');
+            // Handle any mappings
+            if (branchMappings.has(branchName)) {
+                const targetTag = branchMappings.get(branchName);
+                if (!targetTag) {
+                    throw new Error("Target tag existed and then it didn't");
                 }
-                // Use the tag
-                ver.tag = tagName.toLowerCase();
-                // Tag wins for everything except metadata
-                ver.major = parseInt((_d = tagParts[1]) !== null && _d !== void 0 ? _d : '0', 10);
-                ver.minor = parseInt((_e = tagParts[2]) !== null && _e !== void 0 ? _e : '0', 10);
-                ver.patch = parseInt((_f = tagParts[3]) !== null && _f !== void 0 ? _f : '0', 10);
-                ver.preRelease = (_g = tagParts[4]) !== null && _g !== void 0 ? _g : '';
-            }
-            else if (context.eventName === 'schedule') {
-                // Scheduled builds just get a nightly tag
-                ver.tag = 'nightly';
-            }
-            else if (context.eventName === 'pull_request') {
-                // PR gets a simple 'pr-#' tag
-                ver.tag = `pr-${context.ref.split('/')[2]}`;
-            }
-            else if (context.ref.startsWith('refs/heads')) {
-                // Get the branch name
-                const branchName = context.ref
-                    .substring('refs/heads/'.length)
-                    .toLowerCase()
-                    .replace('/', '-');
-                // Handle any mappings
-                if (branchMappings.has(branchName)) {
-                    const targetTag = branchMappings.get(branchName);
-                    if (!targetTag) {
-                        throw new Error("Target tag existed and then it didn't");
-                    }
-                    ver.tag = targetTag.toLowerCase();
-                }
-                else {
-                    ver.tag = branchName.toLowerCase();
-                }
+                ver.tag = targetTag.toLowerCase();
             }
             else {
-                throw new Error(`Unsupported event name (${context.eventName}) or ref (${context.ref})`);
+                ver.tag = branchName.toLowerCase();
             }
-            // Put the SEMVER together
-            ver.semVer = `${ver.major}.${ver.minor}.${ver.patch}`;
-            if (ver.preRelease.length > 0) {
-                ver.semVer += `-${ver.preRelease}`;
-            }
-            ver.semVerNoMeta = ver.semVer;
-            if (ver.metadata.length > 0) {
-                ver.semVer += `+${ver.metadata}`;
-            }
-            // Done
-            resolve(ver);
-        });
+        }
+        else {
+            throw new Error(`Unsupported event name (${context.eventName}) or ref (${context.ref})`);
+        }
+        // Put the SEMVER together
+        ver.semVer = `${ver.major}.${ver.minor}.${ver.patch}`;
+        if (ver.preRelease.length > 0) {
+            ver.semVer += `-${ver.preRelease}`;
+        }
+        ver.semVerNoMeta = ver.semVer;
+        if (ver.metadata.length > 0) {
+            ver.semVer += `+${ver.metadata}`;
+        }
+        // Done
+        return ver;
     });
 }
 exports.SemVer = SemVer;
@@ -538,6 +531,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const os = __importStar(__webpack_require__(87));
+const utils_1 = __webpack_require__(278);
 /**
  * Commands
  *
@@ -591,28 +585,14 @@ class Command {
         return cmdStr;
     }
 }
-/**
- * Sanitizes an input into a string so it can be passed into issueCommand safely
- * @param input input to sanitize into a string
- */
-function toCommandValue(input) {
-    if (input === null || input === undefined) {
-        return '';
-    }
-    else if (typeof input === 'string' || input instanceof String) {
-        return input;
-    }
-    return JSON.stringify(input);
-}
-exports.toCommandValue = toCommandValue;
 function escapeData(s) {
-    return toCommandValue(s)
+    return utils_1.toCommandValue(s)
         .replace(/%/g, '%25')
         .replace(/\r/g, '%0D')
         .replace(/\n/g, '%0A');
 }
 function escapeProperty(s) {
-    return toCommandValue(s)
+    return utils_1.toCommandValue(s)
         .replace(/%/g, '%25')
         .replace(/\r/g, '%0D')
         .replace(/\n/g, '%0A')
@@ -646,6 +626,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const command_1 = __webpack_require__(351);
+const file_command_1 = __webpack_require__(717);
+const utils_1 = __webpack_require__(278);
 const os = __importStar(__webpack_require__(87));
 const path = __importStar(__webpack_require__(622));
 /**
@@ -672,9 +654,17 @@ var ExitCode;
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function exportVariable(name, val) {
-    const convertedVal = command_1.toCommandValue(val);
+    const convertedVal = utils_1.toCommandValue(val);
     process.env[name] = convertedVal;
-    command_1.issueCommand('set-env', { name }, convertedVal);
+    const filePath = process.env['GITHUB_ENV'] || '';
+    if (filePath) {
+        const delimiter = '_GitHubActionsFileCommandDelimeter_';
+        const commandValue = `${name}<<${delimiter}${os.EOL}${convertedVal}${os.EOL}${delimiter}`;
+        file_command_1.issueCommand('ENV', commandValue);
+    }
+    else {
+        command_1.issueCommand('set-env', { name }, convertedVal);
+    }
 }
 exports.exportVariable = exportVariable;
 /**
@@ -690,7 +680,13 @@ exports.setSecret = setSecret;
  * @param inputPath
  */
 function addPath(inputPath) {
-    command_1.issueCommand('add-path', {}, inputPath);
+    const filePath = process.env['GITHUB_PATH'] || '';
+    if (filePath) {
+        file_command_1.issueCommand('PATH', inputPath);
+    }
+    else {
+        command_1.issueCommand('add-path', {}, inputPath);
+    }
     process.env['PATH'] = `${inputPath}${path.delimiter}${process.env['PATH']}`;
 }
 exports.addPath = addPath;
@@ -849,6 +845,68 @@ function getState(name) {
 }
 exports.getState = getState;
 //# sourceMappingURL=core.js.map
+
+/***/ }),
+
+/***/ 717:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+// For internal use, subject to change.
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+// We use any as a valid input type
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const fs = __importStar(__webpack_require__(747));
+const os = __importStar(__webpack_require__(87));
+const utils_1 = __webpack_require__(278);
+function issueCommand(command, message) {
+    const filePath = process.env[`GITHUB_${command}`];
+    if (!filePath) {
+        throw new Error(`Unable to find environment variable for file command ${command}`);
+    }
+    if (!fs.existsSync(filePath)) {
+        throw new Error(`Missing file at path: ${filePath}`);
+    }
+    fs.appendFileSync(filePath, `${utils_1.toCommandValue(message)}${os.EOL}`, {
+        encoding: 'utf8'
+    });
+}
+exports.issueCommand = issueCommand;
+//# sourceMappingURL=file-command.js.map
+
+/***/ }),
+
+/***/ 278:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+// We use any as a valid input type
+/* eslint-disable @typescript-eslint/no-explicit-any */
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+/**
+ * Sanitizes an input into a string so it can be passed into issueCommand safely
+ * @param input input to sanitize into a string
+ */
+function toCommandValue(input) {
+    if (input === null || input === undefined) {
+        return '';
+    }
+    else if (typeof input === 'string' || input instanceof String) {
+        return input;
+    }
+    return JSON.stringify(input);
+}
+exports.toCommandValue = toCommandValue;
+//# sourceMappingURL=utils.js.map
 
 /***/ }),
 
