@@ -357,6 +357,7 @@ function SemVer(baseVer, branchMappings, preReleasePrefix, context) {
             tag: '',
             semVer: '',
             semVerNoMeta: '',
+            semVerFourTupleNumeric: '',
         };
         // Update the tag and version based on the event name and ref values
         if (context.ref.startsWith('refs/tags')) {
@@ -410,6 +411,7 @@ function SemVer(baseVer, branchMappings, preReleasePrefix, context) {
         if (ver.metadata.length > 0) {
             ver.semVer += `+${ver.metadata}`;
         }
+        ver.semVerFourTupleNumeric = `${ver.major}.${ver.minor}.${ver.patch}.${ver.buildNumber}`;
         // Done
         return ver;
     });

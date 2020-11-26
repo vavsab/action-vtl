@@ -14,6 +14,7 @@ export interface Version {
   buildNumber: string;
   created: string;
   semVerNoMeta: string;
+  semVerFourTupleNumeric: string;
 }
 
 export async function SemVer(
@@ -46,6 +47,7 @@ export async function SemVer(
     tag: '',
     semVer: '',
     semVerNoMeta: '',
+    semVerFourTupleNumeric: '',
   };
 
   // Update the tag and version based on the event name and ref values
@@ -100,6 +102,8 @@ export async function SemVer(
   if (ver.metadata.length > 0) {
     ver.semVer += `+${ver.metadata}`;
   }
+
+  ver.semVerFourTupleNumeric = `${ver.major}.${ver.minor}.${ver.patch}.${ver.buildNumber}`
 
   // Done
   return ver;
