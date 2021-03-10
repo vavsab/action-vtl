@@ -358,12 +358,26 @@ function CreateReleaseTag(context, token) {
     return __awaiter(this, void 0, void 0, function* () {
         if (token) {
             const octokit = github.getOctokit(token);
-            const tag = 'v1.0.0';
-            yield octokit.request('POST /repos/{owner}/{repo}/releases', {
+            const mainBranch = "main";
+            // TODO: This will only return first 30 results. Use pagination to search among releases.
+            const tags = yield octokit.request('GET /repos/{owner}/{repo}/tags', {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                tag_name: tag
             });
+            core.info(`Tags: ${JSON.stringify(tags)}`);
+            // await octokit.request('POST /repos/{owner}/{repo}/releases', {
+            //     owner: context.repo.owner,
+            //     repo: context.repo.repo,
+            //     tag_name: tag
+            // })
+            const commits = yield octokit.request('GET /repos/{owner}/{repo}/commits', {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                sha: mainBranch
+            });
+            core.info(`Commits: ${JSON.stringify(commits)}`);
+            core.info(`Context: ${JSON.stringify(context)}`);
+            const tag = 'v1.0.0';
             core.info(`Created tag '${tag}'`);
         }
     });
