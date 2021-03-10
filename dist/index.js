@@ -401,6 +401,8 @@ function CreateReleaseTag(context, token) {
         }
         const nextVersion = Version.parse(latestVersion.toString());
         // TODO: Increment according to semantic commits
+        // TODO: Ignore if release already exist of the latest commit
+        // TODO: Always create if this is initial version (latestVersionCommit == null)
         nextVersion === null || nextVersion === void 0 ? void 0 : nextVersion.incrementPatch();
         var nextTagName = nextVersion.toString();
         yield octokit.request('POST /repos/{owner}/{repo}/releases', {
@@ -461,7 +463,7 @@ class Version {
         if (res == null) {
             return null;
         }
-        return new Version(parseInt(res.groups[0]), parseInt(res.groups[1]), parseInt(res.groups[2]));
+        return new Version(parseInt(res[1]), parseInt(res[2]), parseInt(res[3]));
     }
 }
 Version.regexp = /v(\d+).(\d+).(\d+)/;

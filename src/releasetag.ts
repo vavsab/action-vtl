@@ -65,6 +65,8 @@ export async function CreateReleaseTag(
     const nextVersion = Version.parse(latestVersion!.toString());
 
     // TODO: Increment according to semantic commits
+    // TODO: Ignore if release already exist of the latest commit
+    // TODO: Always create if this is initial version (latestVersionCommit == null)
     nextVersion?.incrementPatch();
     
     var nextTagName = nextVersion!.toString();
@@ -139,7 +141,7 @@ class Version {
             return null;
         }
 
-        return new Version(parseInt(res.groups![0]), parseInt(res.groups![1]), parseInt(res.groups![2]))
+        return new Version(parseInt(res[1]), parseInt(res[2]), parseInt(res[3]))
     }
 }
 
