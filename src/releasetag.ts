@@ -64,10 +64,68 @@ export async function CreateReleaseTag(
 
     const nextVersion = Version.parse(latestVersion!.toString());
 
-    // TODO: Increment according to semantic commits
-    // TODO: Ignore if release already exist of the latest commit
-    // TODO: Always create if this is initial version (latestVersionCommit == null)
-    nextVersion?.incrementPatch();
+    let incrementMajor = false;
+    let incrementMinor = false;
+    let incrementPatch = false;
+    let reachedLatestReleaseCommit = false;
+
+    // Do not increment version if there is no any valid release tag yet.
+    if (latestVersionCommit != null) {
+        let commits = await octokit.request('GET /repos/{owner}/{repo}/commits', {
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            sha: mainBranch,
+            per_page: 100 // Do not search for the latest release commit forever
+        })
+    
+        // TODO: Remove
+        core.info(`Commits: ${JSON.stringify(commits)}`);
+
+        const semanticCommitRegExp = /(feat|fix|chore|refactor|style|test|docs|BREAKING.?CHANGE)(\(#(\w{0,15})\))?:\s?(.*)/i;
+        commits.data.forEach(commit => {
+            if (commit.sha == latestVersionCommit) {
+                reachedLatestReleaseCommit = true;
+                return;
+            }
+
+            const matches = semanticCommitRegExp.exec(commit.commit.message);
+
+            // TODO: Remove
+            core.info(`Commit message: ${commit.commit.message}, regexp matches: ${JSON.stringify(matches)}`);
+
+            if (matches == null) {
+                // Always increment patch if developer does not write messages in "semantic commits" manner (https://gist.github.com/joshbuchea/6f47e86d2510bce28f8e7f42ae84c716)
+                incrementPatch = true;
+                return;
+            }
+
+            const commitType = matches[1].toLowerCase();
+            if (commitType.startsWith("breaking")) {
+                incrementMajor = true;
+            }
+            else if (commitType == "feat") {
+                incrementMinor = true;
+            } else {
+                incrementPatch = true;
+            }
+        });
+
+        if (!reachedLatestReleaseCommit) {
+            core.warning(`Failed to reach the latest release '${latestVersion!.toString()}' (${latestVersionCommit}) inside of the '${mainBranch}' branch. Skipped release creation.`);
+            return;
+        }
+
+        if (incrementMajor) {
+            nextVersion?.incrementMajor();
+        } else if (incrementMinor) {
+            nextVersion?.incrementMinor();
+        } else if (incrementPatch) {
+            nextVersion?.incrementPatch();
+        } else {
+            core.warning("Did not find any new commits since the latest release. Skipped release creation.");
+            return;
+        }
+    }
     
     var nextTagName = nextVersion!.toString();
 
@@ -78,15 +136,6 @@ export async function CreateReleaseTag(
     })
 
     core.info(`Created a release with tag '${nextTagName}'`);
-
-    const commits = await octokit.request('GET /repos/{owner}/{repo}/commits', {
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        sha: mainBranch
-    });
-
-    // TODO: Remove
-    core.info(`Commits: ${JSON.stringify(commits)}`);
 
     // TODO: Remove
     core.info(`Context: ${JSON.stringify(context)}`);
