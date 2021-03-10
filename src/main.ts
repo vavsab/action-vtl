@@ -27,7 +27,7 @@ function logAndOutputObject(key: string, value: any): void {
       logAndOutputObject(`${key}_${objKey}`, objValue);
     }
   } else {
-    // Primative type
+    // Primitive type
     // TODO: Would be nice to output 'steps.<action_id>.outputs.<key>=<value', but context doesn't seem to give us the action id
     const strValue = value.toString();
     core.info(`${key}=${strValue}`);
@@ -61,6 +61,15 @@ async function run(): Promise<void> {
     // Get the github token
     const gitHubToken = core.getInput('gitHubToken') ?? '';
 
+    // Get releases branch
+    const releasesBranch = core.getInput('releasesBranch') ?? '';
+
+    // Get initial release tag
+    const initialReleaseTag = core.getInput('initialReleaseTag') ?? '';
+
+    // Get release removal flag
+    const removeReleaseAssets = (core.getInput('initialReleaseTag') ?? 'true').toLowerCase().trim() == 'true';
+
     // Process the input
     const verInfo = await SemVer(baseVer, branchMappings, preReleasePrefix, github.context);
     const ociInfo = await GetOCI(verInfo, github.context);
@@ -69,8 +78,11 @@ async function run(): Promise<void> {
     logAndOutputObject('ver', verInfo);
     logAndOutputObject('oci', ociInfo);
 
-    // Create release tag
-    await CreateReleaseTag(github.context, gitHubToken)
+    if (releasesBranch) {
+      // Create a release tag
+      var releaseTag = await CreateReleaseTag(github.context, gitHubToken, releasesBranch, initialReleaseTag, removeReleaseAssets)
+      logAndOutputObject('release_tag', releaseTag);
+    }
 
     // Add docker tags
     if (dockerImage != null && dockerImage.length > 0) {

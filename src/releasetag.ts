@@ -5,21 +5,19 @@ import * as core from '@actions/core';
 export async function CreateReleaseTag(
     context: Context,
     token: string | null,
-) {
-    // TODO: Move into vars
-    const mainBranch = "main"
-    const initialTag: string | null = "v1.0.0"
-    const removeReleaseAssets = true;
-
-    const branchRegExp = new RegExp(`refs/heads/${mainBranch}`)
+    releasesBranch: string,
+    initialReleaseTag: string | null,
+    removeReleaseAssets: boolean
+): Promise<string | null> {
+    const branchRegExp = new RegExp(`refs/heads/${releasesBranch}`)
 
     // Tagging is allowed only for main branch
     if (!branchRegExp.test(context.ref)) {
-        return;
+        return null;
     }
     
     if (!token) {
-        return;
+        return null;
     }
     
     const octokit = github.getOctokit(token);
@@ -53,9 +51,9 @@ export async function CreateReleaseTag(
         core.info(`latestVersion: ${latestVersion!.toString()}, latestVersionCommit: ${latestVersionCommit!.toString()}`);
     }
 
-    if (latestVersion == null && initialTag) {
+    if (latestVersion == null && initialReleaseTag) {
         core.info(`Could not find any valid release tag. Trying to use initial tag from config...`);
-        latestVersion = Version.parse(initialTag);
+        latestVersion = Version.parse(initialReleaseTag);
     }
 
     if (latestVersion == null) {
@@ -77,7 +75,7 @@ export async function CreateReleaseTag(
         let commits = await octokit.request('GET /repos/{owner}/{repo}/commits', {
             owner: context.repo.owner,
             repo: context.repo.repo,
-            sha: mainBranch,
+            sha: releasesBranch,
             per_page: 100 // Do not search for the latest release commit forever
         })
     
@@ -123,8 +121,8 @@ export async function CreateReleaseTag(
         }
         
         if (!reachedLatestReleaseCommit) {
-            core.warning(`Failed to reach the latest release '${latestVersion!.toString()}' (${latestVersionCommit}) inside of the '${mainBranch}' branch. Skipped release creation.`);
-            return;
+            core.warning(`Failed to reach the latest release '${latestVersion!.toString()}' (${latestVersionCommit}) inside of the '${releasesBranch}' branch. Skipped release creation.`);
+            return null;
         }
 
         if (incrementMajor) {
@@ -135,7 +133,7 @@ export async function CreateReleaseTag(
             nextVersion?.incrementPatch();
         } else {
             core.warning("Did not find any new commits since the latest release. Skipped release creation.");
-            return;
+            return null;
         }
     }
     
@@ -165,6 +163,8 @@ export async function CreateReleaseTag(
 
     // TODO: Remove
     core.info(`Context: ${JSON.stringify(context)}`);
+
+    return nextTagName;
 }
 
 class Version {
