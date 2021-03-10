@@ -22,14 +22,11 @@ export async function CreateReleaseTag(
     
     const octokit = github.getOctokit(token);
 
-    // TODO: This will only return first 30 results. Use pagination to search among all releases.
     const tags = await octokit.request('GET /repos/{owner}/{repo}/tags', {
         owner: context.repo.owner,
         repo: context.repo.repo,
+        per_page: 100 // There might be some custom tags. Take the maximum amount of items to avoid searching for the valid latest release through several pages 
     });
-
-    // TODO: Remove
-    core.info(`Tags: ${JSON.stringify(tags)}`);
 
     let latestVersion: Version | null = null;
     let latestVersionCommit: string | null = null;
@@ -45,11 +42,6 @@ export async function CreateReleaseTag(
             latestVersionCommit = tag.commit.sha;
         }
     });
-
-    // TODO: Remove 
-    if (latestVersion != null) {
-        core.info(`latestVersion: ${latestVersion!.toString()}, latestVersionCommit: ${latestVersionCommit!.toString()}`);
-    }
 
     if (latestVersion == null && initialReleaseTag) {
         core.info(`Could not find any valid release tag. Trying to use initial tag from config...`);
@@ -78,9 +70,6 @@ export async function CreateReleaseTag(
             sha: releasesBranch,
             per_page: 100 // Do not search for the latest release commit forever
         })
-    
-        // TODO: Remove
-        core.info(`Commits: ${JSON.stringify(commits)}`);
 
         const semanticCommitRegExp = /(feat|fix|chore|refactor|style|test|docs|BREAKING.?CHANGE)(\(#(\w{0,15})\))?:\s?(.*)/i;
 
@@ -96,9 +85,6 @@ export async function CreateReleaseTag(
             if (commit.commit.message) {
                 releaseComments += `\n${commit.commit.message}`;
             }
-
-            // TODO: Remove
-            core.info(`Commit message: ${commit.commit.message}, regexp matches: ${JSON.stringify(matches)}`);
 
             if (matches == null) {
                 // Always increment patch if developer does not write messages in "semantic commits" manner (https://gist.github.com/joshbuchea/6f47e86d2510bce28f8e7f42ae84c716)
@@ -148,7 +134,14 @@ export async function CreateReleaseTag(
     })
 
     if (removeReleaseAssets) {
-        for (let asset of releaseCreateResponse.data.assets) {
+        // For some reason creation response contains 0 assets. Need to query for them explicitly
+        const getReleaseResponse = await octokit.request('GET /repos/{owner}/{repo}/releases/{release_id}', {
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            release_id: releaseCreateResponse.data.id
+        })
+
+        for (let asset of getReleaseResponse.data.assets) {
             await octokit.request('DELETE /repos/{owner}/{repo}/releases/assets/{asset_id}', {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -156,13 +149,10 @@ export async function CreateReleaseTag(
             })
         }
 
-        core.info(`${releaseCreateResponse.data.assets.length} release assets were removed. You may disable assets removal with a corresponding parameter.`);
+        core.info(`${getReleaseResponse.data.assets.length} release assets were removed. You may disable assets removal with a corresponding parameter.`);
     }
 
     core.info(`Created a release with tag '${nextTagName}'`);
-
-    // TODO: Remove
-    core.info(`Context: ${JSON.stringify(context)}`);
 
     return nextTagName;
 }
