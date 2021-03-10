@@ -6,8 +6,7 @@ export async function CreateReleaseTag(
     context: Context,
     token: string | null,
     releasesBranch: string,
-    initialReleaseTag: string | null,
-    removeReleaseAssets: boolean
+    initialReleaseTag: string | null
 ): Promise<string | null> {
     const branchRegExp = new RegExp(`refs/heads/${releasesBranch}`)
 
@@ -125,32 +124,13 @@ export async function CreateReleaseTag(
     
     var nextTagName = nextVersion!.toString();
 
-    const releaseCreateResponse = await octokit.request('POST /repos/{owner}/{repo}/releases', {
+    await octokit.request('POST /repos/{owner}/{repo}/releases', {
         owner: context.repo.owner,
         repo: context.repo.repo,
         tag_name: nextTagName,
         name: nextTagName,
         body: releaseComments
     })
-
-    if (removeReleaseAssets) {
-        // For some reason creation response contains 0 assets. Need to query for them explicitly
-        const getReleaseResponse = await octokit.request('GET /repos/{owner}/{repo}/releases/{release_id}', {
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            release_id: releaseCreateResponse.data.id
-        })
-
-        for (let asset of getReleaseResponse.data.assets) {
-            await octokit.request('DELETE /repos/{owner}/{repo}/releases/assets/{asset_id}', {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                asset_id: asset.id
-            })
-        }
-
-        core.info(`${getReleaseResponse.data.assets.length} release assets were removed. You may disable assets removal with a corresponding parameter.`);
-    }
 
     core.info(`Created a release with tag '${nextTagName}'`);
 

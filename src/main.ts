@@ -67,8 +67,11 @@ async function run(): Promise<void> {
     // Get initial release tag
     const initialReleaseTag = core.getInput('initialReleaseTag') ?? '';
 
-    // Get release removal flag
-    const removeReleaseAssets = (core.getInput('removeReleaseAssets') ?? 'true').toLowerCase().trim() == 'true';
+    if (releasesBranch) {
+      // Create a release tag
+      var releaseTag = await CreateReleaseTag(github.context, gitHubToken, releasesBranch, initialReleaseTag)
+      logAndOutputObject('release_tag', releaseTag);
+    }
 
     // Process the input
     const verInfo = await SemVer(baseVer, branchMappings, preReleasePrefix, github.context);
@@ -77,12 +80,6 @@ async function run(): Promise<void> {
     // Log and push the values back to the workflow runner
     logAndOutputObject('ver', verInfo);
     logAndOutputObject('oci', ociInfo);
-
-    if (releasesBranch) {
-      // Create a release tag
-      var releaseTag = await CreateReleaseTag(github.context, gitHubToken, releasesBranch, initialReleaseTag, removeReleaseAssets)
-      logAndOutputObject('release_tag', releaseTag);
-    }
 
     // Add docker tags
     if (dockerImage != null && dockerImage.length > 0) {

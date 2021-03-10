@@ -34,10 +34,6 @@ inputs:
     description: 'The first version of release. Applied if there is no any release yet'
     required: false
     default: "v1.0.0"
-  removeReleaseAssets:
-    description: 'By default every release contains zip assets with code snapshot. Set this option to true to remove them to save disk space on every release'
-    required: false
-    default: "true"
 
 outputs:
   ver_major:

@@ -193,7 +193,7 @@ function logAndOutputObject(key, value) {
     }
 }
 function run() {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e;
     return __awaiter(this, void 0, void 0, function* () {
         try {
             // Log the full context
@@ -218,19 +218,17 @@ function run() {
             const releasesBranch = (_d = core.getInput('releasesBranch')) !== null && _d !== void 0 ? _d : '';
             // Get initial release tag
             const initialReleaseTag = (_e = core.getInput('initialReleaseTag')) !== null && _e !== void 0 ? _e : '';
-            // Get release removal flag
-            const removeReleaseAssets = ((_f = core.getInput('removeReleaseAssets')) !== null && _f !== void 0 ? _f : 'true').toLowerCase().trim() == 'true';
+            if (releasesBranch) {
+                // Create a release tag
+                var releaseTag = yield releasetag_1.CreateReleaseTag(github.context, gitHubToken, releasesBranch, initialReleaseTag);
+                logAndOutputObject('release_tag', releaseTag);
+            }
             // Process the input
             const verInfo = yield version_1.SemVer(baseVer, branchMappings, preReleasePrefix, github.context);
             const ociInfo = yield oci_1.GetOCI(verInfo, github.context);
             // Log and push the values back to the workflow runner
             logAndOutputObject('ver', verInfo);
             logAndOutputObject('oci', ociInfo);
-            if (releasesBranch) {
-                // Create a release tag
-                var releaseTag = yield releasetag_1.CreateReleaseTag(github.context, gitHubToken, releasesBranch, initialReleaseTag, removeReleaseAssets);
-                logAndOutputObject('release_tag', releaseTag);
-            }
             // Add docker tags
             if (dockerImage != null && dockerImage.length > 0) {
                 const dockerInfo = yield docker_1.GetDockerInfo(dockerImage, verInfo, github.context, gitHubToken);
@@ -363,7 +361,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CreateReleaseTag = void 0;
 const github = __importStar(__webpack_require__(438));
 const core = __importStar(__webpack_require__(186));
-function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag, removeReleaseAssets) {
+function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag) {
     return __awaiter(this, void 0, void 0, function* () {
         const branchRegExp = new RegExp(`refs/heads/${releasesBranch}`);
         // Tagging is allowed only for main branch
@@ -459,29 +457,13 @@ function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag, rem
             }
         }
         var nextTagName = nextVersion.toString();
-        const releaseCreateResponse = yield octokit.request('POST /repos/{owner}/{repo}/releases', {
+        yield octokit.request('POST /repos/{owner}/{repo}/releases', {
             owner: context.repo.owner,
             repo: context.repo.repo,
             tag_name: nextTagName,
             name: nextTagName,
             body: releaseComments
         });
-        if (removeReleaseAssets) {
-            // For some reason creation response contains 0 assets. Need to query for them explicitly
-            const getReleaseResponse = yield octokit.request('GET /repos/{owner}/{repo}/releases/{release_id}', {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: releaseCreateResponse.data.id
-            });
-            for (let asset of getReleaseResponse.data.assets) {
-                yield octokit.request('DELETE /repos/{owner}/{repo}/releases/assets/{asset_id}', {
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    asset_id: asset.id
-                });
-            }
-            core.info(`${getReleaseResponse.data.assets.length} release assets were removed. You may disable assets removal with a corresponding parameter.`);
-        }
         core.info(`Created a release with tag '${nextTagName}'`);
         return nextTagName;
     });
