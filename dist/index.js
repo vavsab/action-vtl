@@ -185,7 +185,7 @@ function logAndOutputObject(key, value) {
         }
     }
     else {
-        // Primative type
+        // Primitive type
         // TODO: Would be nice to output 'steps.<action_id>.outputs.<key>=<value', but context doesn't seem to give us the action id
         const strValue = value.toString();
         core.info(`${key}=${strValue}`);
@@ -193,7 +193,7 @@ function logAndOutputObject(key, value) {
     }
 }
 function run() {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f;
     return __awaiter(this, void 0, void 0, function* () {
         try {
             // Log the full context
@@ -214,14 +214,23 @@ function run() {
             const dockerImage = (_b = core.getInput('dockerImage')) !== null && _b !== void 0 ? _b : '';
             // Get the github token
             const gitHubToken = (_c = core.getInput('gitHubToken')) !== null && _c !== void 0 ? _c : '';
+            // Get releases branch
+            const releasesBranch = (_d = core.getInput('releasesBranch')) !== null && _d !== void 0 ? _d : '';
+            // Get initial release tag
+            const initialReleaseTag = (_e = core.getInput('initialReleaseTag')) !== null && _e !== void 0 ? _e : '';
+            // Get release removal flag
+            const removeReleaseAssets = ((_f = core.getInput('initialReleaseTag')) !== null && _f !== void 0 ? _f : 'true').toLowerCase().trim() == 'true';
             // Process the input
             const verInfo = yield version_1.SemVer(baseVer, branchMappings, preReleasePrefix, github.context);
             const ociInfo = yield oci_1.GetOCI(verInfo, github.context);
             // Log and push the values back to the workflow runner
             logAndOutputObject('ver', verInfo);
             logAndOutputObject('oci', ociInfo);
-            // Create release tag
-            yield releasetag_1.CreateReleaseTag(github.context, gitHubToken);
+            if (releasesBranch) {
+                // Create a release tag
+                var releaseTag = yield releasetag_1.CreateReleaseTag(github.context, gitHubToken, releasesBranch, initialReleaseTag, removeReleaseAssets);
+                logAndOutputObject('release_tag', releaseTag);
+            }
             // Add docker tags
             if (dockerImage != null && dockerImage.length > 0) {
                 const dockerInfo = yield docker_1.GetDockerInfo(dockerImage, verInfo, github.context, gitHubToken);
@@ -354,19 +363,15 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.CreateReleaseTag = void 0;
 const github = __importStar(__webpack_require__(438));
 const core = __importStar(__webpack_require__(186));
-function CreateReleaseTag(context, token) {
+function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag, removeReleaseAssets) {
     return __awaiter(this, void 0, void 0, function* () {
-        // TODO: Move into vars
-        const mainBranch = "main";
-        const initialTag = "v1.0.0";
-        const removeReleaseAssets = true;
-        const branchRegExp = new RegExp(`refs/heads/${mainBranch}`);
+        const branchRegExp = new RegExp(`refs/heads/${releasesBranch}`);
         // Tagging is allowed only for main branch
         if (!branchRegExp.test(context.ref)) {
-            return;
+            return null;
         }
         if (!token) {
-            return;
+            return null;
         }
         const octokit = github.getOctokit(token);
         // TODO: This will only return first 30 results. Use pagination to search among all releases.
@@ -392,9 +397,9 @@ function CreateReleaseTag(context, token) {
         if (latestVersion != null) {
             core.info(`latestVersion: ${latestVersion.toString()}, latestVersionCommit: ${latestVersionCommit.toString()}`);
         }
-        if (latestVersion == null && initialTag) {
+        if (latestVersion == null && initialReleaseTag) {
             core.info(`Could not find any valid release tag. Trying to use initial tag from config...`);
-            latestVersion = Version.parse(initialTag);
+            latestVersion = Version.parse(initialReleaseTag);
         }
         if (latestVersion == null) {
             core.info(`Could not find any valid release tag. Initial tag parameter is not set or invalid. Setting version to v1.0.0`);
@@ -411,7 +416,7 @@ function CreateReleaseTag(context, token) {
             let commits = yield octokit.request('GET /repos/{owner}/{repo}/commits', {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                sha: mainBranch,
+                sha: releasesBranch,
                 per_page: 100 // Do not search for the latest release commit forever
             });
             // TODO: Remove
@@ -446,8 +451,8 @@ function CreateReleaseTag(context, token) {
                 incrementPatch = true;
             }
             if (!reachedLatestReleaseCommit) {
-                core.warning(`Failed to reach the latest release '${latestVersion.toString()}' (${latestVersionCommit}) inside of the '${mainBranch}' branch. Skipped release creation.`);
-                return;
+                core.warning(`Failed to reach the latest release '${latestVersion.toString()}' (${latestVersionCommit}) inside of the '${releasesBranch}' branch. Skipped release creation.`);
+                return null;
             }
             if (incrementMajor) {
                 nextVersion === null || nextVersion === void 0 ? void 0 : nextVersion.incrementMajor();
@@ -460,7 +465,7 @@ function CreateReleaseTag(context, token) {
             }
             else {
                 core.warning("Did not find any new commits since the latest release. Skipped release creation.");
-                return;
+                return null;
             }
         }
         var nextTagName = nextVersion.toString();
@@ -484,6 +489,7 @@ function CreateReleaseTag(context, token) {
         core.info(`Created a release with tag '${nextTagName}'`);
         // TODO: Remove
         core.info(`Context: ${JSON.stringify(context)}`);
+        return nextTagName;
     });
 }
 exports.CreateReleaseTag = CreateReleaseTag;
