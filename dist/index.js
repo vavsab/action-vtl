@@ -359,6 +359,7 @@ function CreateReleaseTag(context, token) {
         // TODO: Move into vars
         const mainBranch = "main";
         const initialTag = "v1.0.0";
+        const removeReleaseAssets = true;
         const branchRegExp = new RegExp(`refs/heads/${mainBranch}`);
         // Tagging is allowed only for main branch
         if (!branchRegExp.test(context.ref)) {
@@ -404,6 +405,7 @@ function CreateReleaseTag(context, token) {
         let incrementMinor = false;
         let incrementPatch = false;
         let reachedLatestReleaseCommit = false;
+        let releaseComments = '';
         // Do not increment version if there is no any valid release tag yet.
         if (latestVersionCommit != null) {
             let commits = yield octokit.request('GET /repos/{owner}/{repo}/commits', {
@@ -422,6 +424,9 @@ function CreateReleaseTag(context, token) {
                     break;
                 }
                 const matches = semanticCommitRegExp.exec(commit.commit.message);
+                if (commit.commit.message) {
+                    releaseComments += `\n${commit.commit.message}`;
+                }
                 // TODO: Remove
                 core.info(`Commit message: ${commit.commit.message}, regexp matches: ${JSON.stringify(matches)}`);
                 if (matches == null) {
@@ -459,14 +464,23 @@ function CreateReleaseTag(context, token) {
             }
         }
         var nextTagName = nextVersion.toString();
-        // TODO: Should I remove assets or do we need them?
-        yield octokit.request('POST /repos/{owner}/{repo}/releases', {
+        const releaseCreateResponse = yield octokit.request('POST /repos/{owner}/{repo}/releases', {
             owner: context.repo.owner,
             repo: context.repo.repo,
             tag_name: nextTagName,
-            name: nextTagName
-            // TODO: Accumulate new commits and add them into description of the release
+            name: nextTagName,
+            body: releaseComments
         });
+        if (removeReleaseAssets) {
+            for (let asset of releaseCreateResponse.data.assets) {
+                yield octokit.request('DELETE /repos/{owner}/{repo}/releases/assets/{asset_id}', {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    asset_id: asset.id
+                });
+            }
+            core.info(`${releaseCreateResponse.data.assets.length} release assets were removed. You may disable assets removal with a corresponding parameter.`);
+        }
         core.info(`Created a release with tag '${nextTagName}'`);
         // TODO: Remove
         core.info(`Context: ${JSON.stringify(context)}`);
