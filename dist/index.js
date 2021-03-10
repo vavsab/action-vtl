@@ -462,7 +462,9 @@ function CreateReleaseTag(context, token) {
         yield octokit.request('POST /repos/{owner}/{repo}/releases', {
             owner: context.repo.owner,
             repo: context.repo.repo,
-            tag_name: nextTagName
+            tag_name: nextTagName,
+            name: nextTagName
+            // TODO: Accumulate new commits and add them into description of the release
         });
         core.info(`Created a release with tag '${nextTagName}'`);
         // TODO: Remove
