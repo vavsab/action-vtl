@@ -69,7 +69,12 @@ async function run(): Promise<void> {
 
     if (releasesBranch) {
       // Create a release tag
-      var releaseTag = await CreateReleaseTag(github.context, gitHubToken, releasesBranch, initialReleaseTag)
+      const releaseTag = await CreateReleaseTag(
+        github.context,
+        gitHubToken,
+        releasesBranch,
+        initialReleaseTag,
+      );
       logAndOutputObject('release_tag', releaseTag);
     }
 

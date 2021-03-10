@@ -103,7 +103,7 @@ export async function SemVer(
     ver.semVer += `+${ver.metadata}`;
   }
 
-  ver.semVerFourTupleNumeric = `${ver.major}.${ver.minor}.${ver.patch}.${ver.buildNumber}`
+  ver.semVerFourTupleNumeric = `${ver.major}.${ver.minor}.${ver.patch}.${ver.buildNumber}`;
 
   // Done
   return ver;
