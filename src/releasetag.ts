@@ -129,6 +129,7 @@ export async function CreateReleaseTag(
     
     var nextTagName = nextVersion!.toString();
 
+    // TODO: Should I remove assets or do we need them?
     await octokit.request('POST /repos/{owner}/{repo}/releases', {
         owner: context.repo.owner,
         repo: context.repo.repo,
@@ -171,11 +172,14 @@ class Version {
     // TODO: Cover with tests
     incrementMajor() {
         this.major++;
+        this.minor = 0;
+        this.patch = 0;
     }
 
     // TODO: Cover with tests
     incrementMinor() {
         this.minor++;
+        this.patch = 0;
     }
 
     // TODO: Cover with tests
