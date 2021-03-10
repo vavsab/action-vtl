@@ -415,10 +415,11 @@ function CreateReleaseTag(context, token) {
             // TODO: Remove
             core.info(`Commits: ${JSON.stringify(commits)}`);
             const semanticCommitRegExp = /(feat|fix|chore|refactor|style|test|docs|BREAKING.?CHANGE)(\(#(\w{0,15})\))?:\s?(.*)/i;
-            commits.data.forEach(commit => {
+            // Choose the most significant change among all commits since previous release
+            for (let commit of commits.data) {
                 if (commit.sha == latestVersionCommit) {
                     reachedLatestReleaseCommit = true;
-                    return;
+                    break;
                 }
                 const matches = semanticCommitRegExp.exec(commit.commit.message);
                 // TODO: Remove
@@ -426,19 +427,19 @@ function CreateReleaseTag(context, token) {
                 if (matches == null) {
                     // Always increment patch if developer does not write messages in "semantic commits" manner (https://gist.github.com/joshbuchea/6f47e86d2510bce28f8e7f42ae84c716)
                     incrementPatch = true;
-                    return;
+                    continue;
                 }
                 const commitType = matches[1].toLowerCase();
                 if (commitType.startsWith("breaking")) {
                     incrementMajor = true;
+                    continue;
                 }
-                else if (commitType == "feat") {
+                if (commitType == "feat") {
                     incrementMinor = true;
+                    continue;
                 }
-                else {
-                    incrementPatch = true;
-                }
-            });
+                incrementPatch = true;
+            }
             if (!reachedLatestReleaseCommit) {
                 core.warning(`Failed to reach the latest release '${latestVersion.toString()}' (${latestVersionCommit}) inside of the '${mainBranch}' branch. Skipped release creation.`);
                 return;
