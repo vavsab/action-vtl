@@ -219,7 +219,7 @@ function run() {
             // Get initial release tag
             const initialReleaseTag = (_e = core.getInput('initialReleaseTag')) !== null && _e !== void 0 ? _e : '';
             // Get release removal flag
-            const removeReleaseAssets = ((_f = core.getInput('initialReleaseTag')) !== null && _f !== void 0 ? _f : 'true').toLowerCase().trim() == 'true';
+            const removeReleaseAssets = ((_f = core.getInput('removeReleaseAssets')) !== null && _f !== void 0 ? _f : 'true').toLowerCase().trim() == 'true';
             // Process the input
             const verInfo = yield version_1.SemVer(baseVer, branchMappings, preReleasePrefix, github.context);
             const ociInfo = yield oci_1.GetOCI(verInfo, github.context);

@@ -68,7 +68,7 @@ async function run(): Promise<void> {
     const initialReleaseTag = core.getInput('initialReleaseTag') ?? '';
 
     // Get release removal flag
-    const removeReleaseAssets = (core.getInput('initialReleaseTag') ?? 'true').toLowerCase().trim() == 'true';
+    const removeReleaseAssets = (core.getInput('removeReleaseAssets') ?? 'true').toLowerCase().trim() == 'true';
 
     // Process the input
     const verInfo = await SemVer(baseVer, branchMappings, preReleasePrefix, github.context);
