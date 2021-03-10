@@ -3,6 +3,7 @@ import * as github from '@actions/github';
 import {SemVer} from './version';
 import {GetOCI} from './oci';
 import {GetDockerInfo} from './docker';
+import {CreateReleaseTag} from './releasetag';
 import fs from 'fs';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,6 +68,9 @@ async function run(): Promise<void> {
     // Log and push the values back to the workflow runner
     logAndOutputObject('ver', verInfo);
     logAndOutputObject('oci', ociInfo);
+
+    // Create release tag
+    await CreateReleaseTag(github.context, gitHubToken)
 
     // Add docker tags
     if (dockerImage != null && dockerImage.length > 0) {
