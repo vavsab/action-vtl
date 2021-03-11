@@ -442,7 +442,7 @@ function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag) {
                 incrementPatch = true;
             }
             if (!reachedLatestReleaseCommit) {
-                core.warning(`Failed to reach the latest release '${latestVersion.toString()}' (${latestVersionCommit}) inside of the '${releasesBranch}' branch. Skipped release creation.`);
+                core.warning(`Failed to reach the latest release tag '${latestVersion.toString()}' (${latestVersionCommit}) inside of the '${releasesBranch}' branch. Skipped tag creation.`);
                 return null;
             }
             if (incrementMajor) {
@@ -455,19 +455,20 @@ function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag) {
                 nextVersion.incrementPatch();
             }
             else {
-                core.warning('Did not find any new commits since the latest release. Skipped release creation.');
+                core.warning('Did not find any new commits since the latest release tag. Skipped release creation.');
                 return null;
             }
         }
         const nextTagName = nextVersion.toString();
-        yield octokit.request('POST /repos/{owner}/{repo}/releases', {
+        yield octokit.request('POST /repos/{owner}/{repo}/git/tags', {
             owner: context.repo.owner,
             repo: context.repo.repo,
-            tag_name: nextTagName !== null && nextTagName !== void 0 ? nextTagName : 'undefined',
-            name: nextTagName,
-            body: releaseComments,
+            tag: nextTagName,
+            message: releaseComments,
+            object: context.sha,
+            type: 'commit',
         });
-        core.info(`Created a release with tag '${nextTagName}'`);
+        core.info(`Created a tag '${nextTagName}'`);
         return nextTagName;
     });
 }

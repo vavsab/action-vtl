@@ -112,7 +112,7 @@ export async function CreateReleaseTag(
 
     if (!reachedLatestReleaseCommit) {
       core.warning(
-        `Failed to reach the latest release '${latestVersion.toString()}' (${latestVersionCommit}) inside of the '${releasesBranch}' branch. Skipped release creation.`,
+        `Failed to reach the latest release tag '${latestVersion.toString()}' (${latestVersionCommit}) inside of the '${releasesBranch}' branch. Skipped tag creation.`,
       );
       return null;
     }
@@ -125,7 +125,7 @@ export async function CreateReleaseTag(
       nextVersion.incrementPatch();
     } else {
       core.warning(
-        'Did not find any new commits since the latest release. Skipped release creation.',
+        'Did not find any new commits since the latest release tag. Skipped release creation.',
       );
       return null;
     }
@@ -133,15 +133,16 @@ export async function CreateReleaseTag(
 
   const nextTagName = nextVersion.toString();
 
-  await octokit.request('POST /repos/{owner}/{repo}/releases', {
+  await octokit.request('POST /repos/{owner}/{repo}/git/tags', {
     owner: context.repo.owner,
     repo: context.repo.repo,
-    tag_name: nextTagName ?? 'undefined',
-    name: nextTagName,
-    body: releaseComments,
+    tag: nextTagName,
+    message: releaseComments,
+    object: context.sha,
+    type: 'commit',
   });
 
-  core.info(`Created a release with tag '${nextTagName}'`);
+  core.info(`Created a tag '${nextTagName}'`);
 
   return nextTagName;
 }
