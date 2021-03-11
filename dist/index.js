@@ -471,7 +471,7 @@ function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag) {
         yield octokit.request('POST /repos/{owner}/{repo}/git/refs', {
             owner: context.repo.owner,
             repo: context.repo.repo,
-            ref: `refs/heads/${nextTagName}`,
+            ref: `refs/tags/${nextTagName}`,
             sha: context.sha,
         });
         core.info(`Created a tag '${nextTagName}'`);

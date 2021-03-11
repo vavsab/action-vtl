@@ -145,7 +145,7 @@ export async function CreateReleaseTag(
   await octokit.request('POST /repos/{owner}/{repo}/git/refs', {
     owner: context.repo.owner,
     repo: context.repo.repo,
-    ref: `refs/heads/${nextTagName}`,
+    ref: `refs/tags/${nextTagName}`,
     sha: context.sha,
   });
 
