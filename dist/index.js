@@ -468,6 +468,12 @@ function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag) {
             object: context.sha,
             type: 'commit',
         });
+        yield octokit.request('POST /repos/{owner}/{repo}/git/refs', {
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            ref: nextTagName,
+            sha: context.sha
+        });
         core.info(`Created a tag '${nextTagName}'`);
         return nextTagName;
     });
