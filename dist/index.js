@@ -218,15 +218,13 @@ function run() {
             const releasesBranch = (_d = core.getInput('releasesBranch')) !== null && _d !== void 0 ? _d : '';
             // Get initial release tag
             const initialReleaseTag = (_e = core.getInput('initialReleaseTag')) !== null && _e !== void 0 ? _e : '';
-            if (releasesBranch) {
-                // Create a release tag
-                const releaseTag = yield releasetag_1.CreateReleaseTag(github.context, gitHubToken, releasesBranch, initialReleaseTag);
-                logAndOutputObject('release_tag', releaseTag);
-            }
+            // Create a release tag
+            const releaseTagVersion = yield releasetag_1.CreateReleaseTag(github.context, gitHubToken, releasesBranch, initialReleaseTag);
             // Process the input
-            const verInfo = yield version_1.SemVer(baseVer, branchMappings, preReleasePrefix, github.context);
+            const verInfo = yield version_1.SemVer(baseVer, branchMappings, preReleasePrefix, github.context, releaseTagVersion);
             const ociInfo = yield oci_1.GetOCI(verInfo, github.context);
             // Log and push the values back to the workflow runner
+            logAndOutputObject('release_tag', releaseTagVersion === null || releaseTagVersion === void 0 ? void 0 : releaseTagVersion.toString());
             logAndOutputObject('ver', verInfo);
             logAndOutputObject('oci', ociInfo);
             // Add docker tags
@@ -358,11 +356,17 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.CreateReleaseTag = void 0;
+exports.ReleaseTagVersion = exports.CreateReleaseTag = void 0;
 const github = __importStar(__webpack_require__(438));
 const core = __importStar(__webpack_require__(186));
 function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag) {
     return __awaiter(this, void 0, void 0, function* () {
+        if (!releasesBranch) {
+            return null;
+        }
+        if (context.eventName !== 'push') {
+            return null;
+        }
         const branchRegExp = new RegExp(`refs/heads/${releasesBranch}`);
         // Tagging is allowed only for main branch
         if (!branchRegExp.test(context.ref)) {
@@ -380,7 +384,7 @@ function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag) {
         let latestVersion = null;
         let latestVersionCommit = null;
         for (const tag of tags.data) {
-            const ver = Version.parse(tag.name);
+            const ver = ReleaseTagVersion.parse(tag.name);
             if (ver === null) {
                 continue;
             }
@@ -391,13 +395,13 @@ function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag) {
         }
         if (latestVersion === null && initialReleaseTag) {
             core.info(`Could not find any valid release tag. Trying to use initial tag from config...`);
-            latestVersion = Version.parse(initialReleaseTag);
+            latestVersion = ReleaseTagVersion.parse(initialReleaseTag);
         }
         if (latestVersion === null) {
             core.info(`Could not find any valid release tag. Initial tag parameter is not set or invalid. Setting version to v1.0.0`);
-            latestVersion = new Version(1, 0, 0);
+            latestVersion = new ReleaseTagVersion(1, 0, 0);
         }
-        const nextVersion = Version.parse(latestVersion.toString());
+        const nextVersion = ReleaseTagVersion.parse(latestVersion.toString());
         if (nextVersion == null) {
             throw Error('Failed to parse latest version');
         }
@@ -475,15 +479,24 @@ function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag) {
             sha: context.sha,
         });
         core.info(`Created a tag '${nextTagName}'`);
-        return nextTagName;
+        return nextVersion;
     });
 }
 exports.CreateReleaseTag = CreateReleaseTag;
-class Version {
+class ReleaseTagVersion {
     constructor(major, minor, patch) {
         this.major = major;
         this.minor = minor;
         this.patch = patch;
+    }
+    getMajor() {
+        return this.major;
+    }
+    getMinor() {
+        return this.minor;
+    }
+    getPatch() {
+        return this.patch;
     }
     toString() {
         return `v${this.major}.${this.minor}.${this.patch}`;
@@ -521,14 +534,15 @@ class Version {
         if (val === undefined) {
             return null;
         }
-        const res = Version.regexp.exec(val);
+        const res = ReleaseTagVersion.regexp.exec(val);
         if (res === null) {
             return null;
         }
-        return new Version(parseInt(res[1]), parseInt(res[2]), parseInt(res[3]));
+        return new ReleaseTagVersion(parseInt(res[1]), parseInt(res[2]), parseInt(res[3]));
     }
 }
-Version.regexp = /v(\d+).(\d+).(\d+)/;
+exports.ReleaseTagVersion = ReleaseTagVersion;
+ReleaseTagVersion.regexp = /v(\d+).(\d+).(\d+)/;
 
 
 /***/ }),
@@ -551,7 +565,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.compareSemvers = exports.SemVer = exports.SEMVER_REGEX = void 0;
 exports.SEMVER_REGEX = /(?<=^v?|\sv?)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[\da-z-]*[a-z-][\da-z-]*)(?:\.(?:0|[1-9]\d*|[\da-z-]*[a-z-][\da-z-]*))*))?(?:\+([\da-z-]+(?:\.[\da-z-]+)*))?(?=$|\s)/i;
 const NUMERIC_REGEX = /^\d+$/;
-function SemVer(baseVer, branchMappings, preReleasePrefix, context) {
+function SemVer(baseVer, branchMappings, preReleasePrefix, context, releaseTagVersion = null) {
     var _a, _b, _c, _d, _e, _f, _g;
     return __awaiter(this, void 0, void 0, function* () {
         // Validate the base SEMVER
@@ -616,6 +630,13 @@ function SemVer(baseVer, branchMappings, preReleasePrefix, context) {
             }
             else {
                 ver.tag = branchName.toLowerCase();
+            }
+            // Override version with a release tag if it was created
+            if (releaseTagVersion) {
+                ver.preRelease = '';
+                ver.major = releaseTagVersion.getMajor();
+                ver.minor = releaseTagVersion.getMinor();
+                ver.patch = releaseTagVersion.getPatch();
             }
         }
         else {

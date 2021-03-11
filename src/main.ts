@@ -67,22 +67,26 @@ async function run(): Promise<void> {
     // Get initial release tag
     const initialReleaseTag = core.getInput('initialReleaseTag') ?? '';
 
-    if (releasesBranch) {
-      // Create a release tag
-      const releaseTag = await CreateReleaseTag(
-        github.context,
-        gitHubToken,
-        releasesBranch,
-        initialReleaseTag,
-      );
-      logAndOutputObject('release_tag', releaseTag);
-    }
+    // Create a release tag
+    const releaseTagVersion = await CreateReleaseTag(
+      github.context,
+      gitHubToken,
+      releasesBranch,
+      initialReleaseTag,
+    );
 
     // Process the input
-    const verInfo = await SemVer(baseVer, branchMappings, preReleasePrefix, github.context);
+    const verInfo = await SemVer(
+      baseVer,
+      branchMappings,
+      preReleasePrefix,
+      github.context,
+      releaseTagVersion,
+    );
     const ociInfo = await GetOCI(verInfo, github.context);
 
     // Log and push the values back to the workflow runner
+    logAndOutputObject('release_tag', releaseTagVersion?.toString());
     logAndOutputObject('ver', verInfo);
     logAndOutputObject('oci', ociInfo);
 

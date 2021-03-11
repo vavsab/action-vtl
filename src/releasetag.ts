@@ -7,7 +7,15 @@ export async function CreateReleaseTag(
   token: string | null,
   releasesBranch: string,
   initialReleaseTag: string | null,
-): Promise<string | null> {
+): Promise<ReleaseTagVersion | null> {
+  if (!releasesBranch) {
+    return null;
+  }
+
+  if (context.eventName !== 'push') {
+    return null;
+  }
+
   const branchRegExp = new RegExp(`refs/heads/${releasesBranch}`);
 
   // Tagging is allowed only for main branch
@@ -27,11 +35,11 @@ export async function CreateReleaseTag(
     per_page: 100, // There might be some custom tags. Take the maximum amount of items to avoid searching for the valid latest release through several pages
   });
 
-  let latestVersion: Version | null = null;
+  let latestVersion: ReleaseTagVersion | null = null;
   let latestVersionCommit: string | null = null;
 
   for (const tag of tags.data) {
-    const ver = Version.parse(tag.name);
+    const ver = ReleaseTagVersion.parse(tag.name);
     if (ver === null) {
       continue;
     }
@@ -44,17 +52,17 @@ export async function CreateReleaseTag(
 
   if (latestVersion === null && initialReleaseTag) {
     core.info(`Could not find any valid release tag. Trying to use initial tag from config...`);
-    latestVersion = Version.parse(initialReleaseTag);
+    latestVersion = ReleaseTagVersion.parse(initialReleaseTag);
   }
 
   if (latestVersion === null) {
     core.info(
       `Could not find any valid release tag. Initial tag parameter is not set or invalid. Setting version to v1.0.0`,
     );
-    latestVersion = new Version(1, 0, 0);
+    latestVersion = new ReleaseTagVersion(1, 0, 0);
   }
 
-  const nextVersion = Version.parse(latestVersion.toString());
+  const nextVersion = ReleaseTagVersion.parse(latestVersion.toString());
   if (nextVersion == null) {
     throw Error('Failed to parse latest version');
   }
@@ -151,20 +159,32 @@ export async function CreateReleaseTag(
 
   core.info(`Created a tag '${nextTagName}'`);
 
-  return nextTagName;
+  return nextVersion;
 }
 
-class Version {
+export class ReleaseTagVersion {
   private static regexp = /v(\d+).(\d+).(\d+)/;
 
   constructor(private major: number, private minor: number, private patch: number) {}
+
+  getMajor(): number {
+    return this.major;
+  }
+
+  getMinor(): number {
+    return this.minor;
+  }
+
+  getPatch(): number {
+    return this.patch;
+  }
 
   toString(): string {
     return `v${this.major}.${this.minor}.${this.patch}`;
   }
 
   // TODO: Cover with tests
-  isGreaterThan(ver: Version): boolean {
+  isGreaterThan(ver: ReleaseTagVersion): boolean {
     if (this.major !== ver.major) {
       return this.major > ver.major;
     }
@@ -199,16 +219,16 @@ class Version {
   }
 
   // TODO: Cover with tests
-  static parse(val: string | undefined): Version | null {
+  static parse(val: string | undefined): ReleaseTagVersion | null {
     if (val === undefined) {
       return null;
     }
 
-    const res = Version.regexp.exec(val);
+    const res = ReleaseTagVersion.regexp.exec(val);
     if (res === null) {
       return null;
     }
 
-    return new Version(parseInt(res[1]), parseInt(res[2]), parseInt(res[3]));
+    return new ReleaseTagVersion(parseInt(res[1]), parseInt(res[2]), parseInt(res[3]));
   }
 }

@@ -1,4 +1,5 @@
 import {Context} from '@actions/github/lib/context';
+import {ReleaseTagVersion} from './releasetag';
 
 export const SEMVER_REGEX = /(?<=^v?|\sv?)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[\da-z-]*[a-z-][\da-z-]*)(?:\.(?:0|[1-9]\d*|[\da-z-]*[a-z-][\da-z-]*))*))?(?:\+([\da-z-]+(?:\.[\da-z-]+)*))?(?=$|\s)/i;
 const NUMERIC_REGEX = /^\d+$/;
@@ -22,6 +23,7 @@ export async function SemVer(
   branchMappings: Map<string, string>,
   preReleasePrefix: string,
   context: Context,
+  releaseTagVersion: ReleaseTagVersion | null = null,
 ): Promise<Version> {
   // Validate the base SEMVER
   const baseVerParts = baseVer.match(SEMVER_REGEX);
@@ -88,6 +90,14 @@ export async function SemVer(
       ver.tag = targetTag.toLowerCase();
     } else {
       ver.tag = branchName.toLowerCase();
+    }
+
+    // Override version with a release tag if it was created
+    if (releaseTagVersion) {
+      ver.preRelease = '';
+      ver.major = releaseTagVersion.getMajor();
+      ver.minor = releaseTagVersion.getMinor();
+      ver.patch = releaseTagVersion.getPatch();
     }
   } else {
     throw new Error(`Unsupported event name (${context.eventName}) or ref (${context.ref})`);
