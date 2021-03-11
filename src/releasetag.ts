@@ -183,7 +183,6 @@ export class ReleaseTagVersion {
     return `v${this.major}.${this.minor}.${this.patch}`;
   }
 
-  // TODO: Cover with tests
   isGreaterThan(ver: ReleaseTagVersion): boolean {
     if (this.major !== ver.major) {
       return this.major > ver.major;
@@ -200,27 +199,23 @@ export class ReleaseTagVersion {
     return false;
   }
 
-  // TODO: Cover with tests
   incrementMajor(): void {
     this.major++;
     this.minor = 0;
     this.patch = 0;
   }
 
-  // TODO: Cover with tests
   incrementMinor(): void {
     this.minor++;
     this.patch = 0;
   }
 
-  // TODO: Cover with tests
   incrementPatch(): void {
     this.patch++;
   }
 
-  // TODO: Cover with tests
-  static parse(val: string | undefined): ReleaseTagVersion | null {
-    if (val === undefined) {
+  static parse(val: string | undefined | null): ReleaseTagVersion | null {
+    if (val === undefined || val === null) {
       return null;
     }
 

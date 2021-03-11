@@ -501,7 +501,6 @@ class ReleaseTagVersion {
     toString() {
         return `v${this.major}.${this.minor}.${this.patch}`;
     }
-    // TODO: Cover with tests
     isGreaterThan(ver) {
         if (this.major !== ver.major) {
             return this.major > ver.major;
@@ -514,24 +513,20 @@ class ReleaseTagVersion {
         }
         return false;
     }
-    // TODO: Cover with tests
     incrementMajor() {
         this.major++;
         this.minor = 0;
         this.patch = 0;
     }
-    // TODO: Cover with tests
     incrementMinor() {
         this.minor++;
         this.patch = 0;
     }
-    // TODO: Cover with tests
     incrementPatch() {
         this.patch++;
     }
-    // TODO: Cover with tests
     static parse(val) {
-        if (val === undefined) {
+        if (val === undefined || val === null) {
             return null;
         }
         const res = ReleaseTagVersion.regexp.exec(val);

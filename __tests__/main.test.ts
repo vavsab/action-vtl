@@ -1,11 +1,6 @@
 import {SemVer, compareSemvers} from '../src/version';
 import {GetDockerInfo} from '../src/docker';
 import {Context} from '@actions/github/lib/context';
-import {EventPayloads} from '@octokit/webhooks';
-import * as process from 'process';
-import * as cp from 'child_process';
-import * as path from 'path';
-import {exit} from 'process';
 
 // Some generic good values
 const goodBaseVer = [
