@@ -3,6 +3,7 @@ import * as github from '@actions/github';
 import {SemVer} from './version';
 import {GetOCI} from './oci';
 import {GetDockerInfo} from './docker';
+import {CreateReleaseTag} from './releasetag';
 import fs from 'fs';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,7 +27,7 @@ function logAndOutputObject(key: string, value: any): void {
       logAndOutputObject(`${key}_${objKey}`, objValue);
     }
   } else {
-    // Primative type
+    // Primitive type
     // TODO: Would be nice to output 'steps.<action_id>.outputs.<key>=<value', but context doesn't seem to give us the action id
     const strValue = value.toString();
     core.info(`${key}=${strValue}`);
@@ -60,11 +61,31 @@ async function run(): Promise<void> {
     // Get the github token
     const gitHubToken = core.getInput('gitHubToken') ?? '';
 
+    // Get releases branch
+    const releasesBranch = core.getInput('releasesBranch')?.trim() ?? '';
+
+    // Create a release tag
+    const createReleaseTagRes = await CreateReleaseTag(
+      github.context,
+      gitHubToken,
+      releasesBranch,
+      baseVer,
+    );
+
     // Process the input
-    const verInfo = await SemVer(baseVer, branchMappings, preReleasePrefix, github.context);
+    const verInfo = await SemVer(
+      createReleaseTagRes.getBaseVersionOverride(),
+      createReleaseTagRes.isPrerelease(),
+      branchMappings,
+      preReleasePrefix,
+      github.context,
+    );
+
     const ociInfo = await GetOCI(verInfo, github.context);
 
     // Log and push the values back to the workflow runner
+    logAndOutputObject('release_tag', createReleaseTagRes.createdReleaseTag?.toString());
+    logAndOutputObject('release_previousTag', createReleaseTagRes.previousReleaseTag.toString());
     logAndOutputObject('ver', verInfo);
     logAndOutputObject('oci', ociInfo);
 

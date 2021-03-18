@@ -163,6 +163,7 @@ const github = __importStar(__webpack_require__(438));
 const version_1 = __webpack_require__(217);
 const oci_1 = __webpack_require__(853);
 const docker_1 = __webpack_require__(758);
+const releasetag_1 = __webpack_require__(924);
 const fs_1 = __importDefault(__webpack_require__(747));
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isObject(obj) {
@@ -184,7 +185,7 @@ function logAndOutputObject(key, value) {
         }
     }
     else {
-        // Primative type
+        // Primitive type
         // TODO: Would be nice to output 'steps.<action_id>.outputs.<key>=<value', but context doesn't seem to give us the action id
         const strValue = value.toString();
         core.info(`${key}=${strValue}`);
@@ -192,7 +193,7 @@ function logAndOutputObject(key, value) {
     }
 }
 function run() {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f;
     return __awaiter(this, void 0, void 0, function* () {
         try {
             // Log the full context
@@ -213,10 +214,16 @@ function run() {
             const dockerImage = (_b = core.getInput('dockerImage')) !== null && _b !== void 0 ? _b : '';
             // Get the github token
             const gitHubToken = (_c = core.getInput('gitHubToken')) !== null && _c !== void 0 ? _c : '';
+            // Get releases branch
+            const releasesBranch = (_e = (_d = core.getInput('releasesBranch')) === null || _d === void 0 ? void 0 : _d.trim()) !== null && _e !== void 0 ? _e : '';
+            // Create a release tag
+            const createReleaseTagRes = yield releasetag_1.CreateReleaseTag(github.context, gitHubToken, releasesBranch, baseVer);
             // Process the input
-            const verInfo = yield version_1.SemVer(baseVer, branchMappings, preReleasePrefix, github.context);
+            const verInfo = yield version_1.SemVer(createReleaseTagRes.getBaseVersionOverride(), createReleaseTagRes.isPrerelease(), branchMappings, preReleasePrefix, github.context);
             const ociInfo = yield oci_1.GetOCI(verInfo, github.context);
             // Log and push the values back to the workflow runner
+            logAndOutputObject('release_tag', (_f = createReleaseTagRes.createdReleaseTag) === null || _f === void 0 ? void 0 : _f.toString());
+            logAndOutputObject('release_previousTag', createReleaseTagRes.previousReleaseTag.toString());
             logAndOutputObject('ver', verInfo);
             logAndOutputObject('oci', ociInfo);
             // Add docker tags
@@ -314,6 +321,279 @@ exports.GetOCI = GetOCI;
 
 /***/ }),
 
+/***/ 924:
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.ReleaseTagVersion = exports.CreateReleaseTag = exports.CreateReleaseResult = void 0;
+const github = __importStar(__webpack_require__(438));
+const core = __importStar(__webpack_require__(186));
+class CreateReleaseResult {
+    constructor(
+    // Not null if push was made in releases branch (usually main) or if someone decided to rerun the latest build. Otherwise set to null.
+    createdReleaseTag, 
+    // Represents previous version. Or the latest version if release was not created. Or initial version if there are no any valid releases yet.
+    previousReleaseTag, 
+    // Previous version commit sha. Null if previous version was not created yet (only in case when there are no valid release tags in repo).
+    previousReleaseTagCommitSha) {
+        this.createdReleaseTag = createdReleaseTag;
+        this.previousReleaseTag = previousReleaseTag;
+        this.previousReleaseTagCommitSha = previousReleaseTagCommitSha;
+    }
+    isPrerelease() {
+        return this.createdReleaseTag === null;
+    }
+    getBaseVersionOverride() {
+        var _a;
+        return ((_a = this.createdReleaseTag) !== null && _a !== void 0 ? _a : this.previousReleaseTag).toString();
+    }
+}
+exports.CreateReleaseResult = CreateReleaseResult;
+function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const baseVersion = ReleaseTagVersion.parse(baseVersionStr);
+        if (baseVersion === null) {
+            throw Error(`Failed to parse base version '${baseVersionStr}'`);
+        }
+        const res = new CreateReleaseResult(null, baseVersion, null);
+        if (!token) {
+            core.info('GitHub token is missing. Skipping release creation...');
+            return res;
+        }
+        const gitHubClient = new GitHubClient(token, context.repo.owner, context.repo.repo);
+        const tags = yield gitHubClient.getTags();
+        const commits = yield gitHubClient.getCommits(context.sha);
+        // Find the previous tag
+        for (const tag of tags) {
+            const ver = ReleaseTagVersion.parse(tag.name);
+            // Skip releases with invalid format
+            if (ver === null) {
+                continue;
+            }
+            // Skip releases that are not related to the current commit.
+            // For example this build may run inside of a separate branch that is behind main branch.
+            // Or this build may be a rerun of some failed build several commit earlier in main branch.
+            if (!commits.find(x => x.sha === tag.commit.sha)) {
+                continue;
+            }
+            if (ver.isGreaterOrEqualTo(res.previousReleaseTag)) {
+                res.previousReleaseTag = ver;
+                res.previousReleaseTagCommitSha = tag.commit.sha;
+            }
+        }
+        // Do not create release if developer intentionally switched this feature off
+        if (!releasesBranch) {
+            return res;
+        }
+        // Do not create releases for tags and pull requests etc. Creation is only allowed for simple commit pushes.
+        if (context.eventName !== 'push') {
+            return res;
+        }
+        const branchRegExp = new RegExp(`refs/heads/${releasesBranch}`);
+        // Tagging is allowed only for one selected branch (usually main branch)
+        if (!branchRegExp.test(context.ref)) {
+            return res;
+        }
+        res.createdReleaseTag = ReleaseTagVersion.parse(res.previousReleaseTag.toString());
+        if (res.createdReleaseTag == null) {
+            throw Error(`Failed to clone previous version '${res.previousReleaseTag.toString()}'`);
+        }
+        let releaseComments = '';
+        // Do not increment version if there is no any valid release tag yet.
+        if (res.previousReleaseTagCommitSha !== null) {
+            let incrementMajor = false;
+            let incrementMinor = false;
+            let incrementPatch = false;
+            let reachedLatestReleaseCommit = false;
+            const semanticCommitRegExp = /(feat|fix|chore|refactor|style|test|docs)(\(#(\w{0,15})\))?(!)?:\s?(.*)/i;
+            // Choose the most significant change among all commits since previous release
+            for (const commit of commits) {
+                if (commit.sha === res.previousReleaseTagCommitSha) {
+                    reachedLatestReleaseCommit = true;
+                    break;
+                }
+                const message = commit.commit.message;
+                const matches = semanticCommitRegExp.exec(message);
+                if (message) {
+                    releaseComments += `\n${message}`;
+                }
+                if (matches === null) {
+                    // Always increment patch if developer does not write messages in "semantic commits" manner (https://gist.github.com/joshbuchea/6f47e86d2510bce28f8e7f42ae84c716)
+                    incrementPatch = true;
+                    continue;
+                }
+                // Breaking change rules described here https://www.conventionalcommits.org/en/v1.0.0/
+                const breakingChangeSign = matches[4];
+                if (breakingChangeSign || message.toUpperCase().includes('BREAKING CHANGE')) {
+                    incrementMajor = true;
+                    continue;
+                }
+                const commitType = matches[1];
+                if (commitType === 'feat') {
+                    incrementMinor = true;
+                    continue;
+                }
+                incrementPatch = true;
+            }
+            if (!reachedLatestReleaseCommit) {
+                throw Error(`Failed to reach the latest release tag '${res.previousReleaseTag.toString()}' (${res.previousReleaseTagCommitSha}) inside of the '${releasesBranch}' branch.`);
+            }
+            if (incrementMajor) {
+                res.createdReleaseTag.incrementMajor();
+            }
+            else if (incrementMinor) {
+                res.createdReleaseTag.incrementMinor();
+            }
+            else if (incrementPatch) {
+                res.createdReleaseTag.incrementPatch();
+            }
+            else {
+                core.warning('Did not find any new commit since the latest release tag. Seems that release is already created.');
+                return res;
+            }
+        }
+        const nextTagName = res.createdReleaseTag.toString();
+        gitHubClient.createTag(nextTagName, releaseComments, context.sha);
+        core.info(`Created a tag '${nextTagName}'`);
+        return res;
+    });
+}
+exports.CreateReleaseTag = CreateReleaseTag;
+class GitHubClient {
+    constructor(token, owner, repo) {
+        this.owner = owner;
+        this.repo = repo;
+        this.octokit = github.getOctokit(token);
+    }
+    getTags() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const res = yield this.octokit.request('GET /repos/{owner}/{repo}/tags', {
+                owner: this.owner,
+                repo: this.repo,
+                per_page: 100,
+            });
+            return res.data;
+        });
+    }
+    getCommits(startFromSha) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const res = yield this.octokit.request('GET /repos/{owner}/{repo}/commits', {
+                owner: this.owner,
+                repo: this.repo,
+                sha: startFromSha,
+                per_page: 100,
+            });
+            return res.data;
+        });
+    }
+    createTag(tagName, comments, commitSha) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.octokit.request('POST /repos/{owner}/{repo}/git/tags', {
+                owner: this.owner,
+                repo: this.repo,
+                tag: tagName,
+                message: comments,
+                object: commitSha,
+                type: 'commit',
+            });
+            yield this.octokit.request('POST /repos/{owner}/{repo}/git/refs', {
+                owner: this.owner,
+                repo: this.repo,
+                ref: `refs/tags/${tagName}`,
+                sha: commitSha,
+            });
+        });
+    }
+}
+class ReleaseTagVersion {
+    constructor(major, minor, patch) {
+        this.major = major;
+        this.minor = minor;
+        this.patch = patch;
+    }
+    getMajor() {
+        return this.major;
+    }
+    getMinor() {
+        return this.minor;
+    }
+    getPatch() {
+        return this.patch;
+    }
+    toString() {
+        return `v${this.major}.${this.minor}.${this.patch}`;
+    }
+    isGreaterOrEqualTo(ver) {
+        if (this.major !== ver.major) {
+            return this.major > ver.major;
+        }
+        if (this.minor !== ver.minor) {
+            return this.minor > ver.minor;
+        }
+        if (this.patch !== ver.patch) {
+            return this.patch > ver.patch;
+        }
+        return true;
+    }
+    incrementMajor() {
+        this.major++;
+        this.minor = 0;
+        this.patch = 0;
+    }
+    incrementMinor() {
+        this.minor++;
+        this.patch = 0;
+    }
+    incrementPatch() {
+        this.patch++;
+    }
+    static parse(val) {
+        if (val === undefined || val === null) {
+            return null;
+        }
+        const res = ReleaseTagVersion.regexp.exec(val);
+        if (res === null) {
+            return null;
+        }
+        return new ReleaseTagVersion(parseInt(res[1]), parseInt(res[2]), parseInt(res[3]));
+    }
+}
+exports.ReleaseTagVersion = ReleaseTagVersion;
+ReleaseTagVersion.regexp = /v?(\d+).(\d+).(\d+)/;
+
+
+/***/ }),
+
 /***/ 217:
 /***/ (function(__unused_webpack_module, exports) {
 
@@ -332,7 +612,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.compareSemvers = exports.SemVer = exports.SEMVER_REGEX = void 0;
 exports.SEMVER_REGEX = /(?<=^v?|\sv?)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[\da-z-]*[a-z-][\da-z-]*)(?:\.(?:0|[1-9]\d*|[\da-z-]*[a-z-][\da-z-]*))*))?(?:\+([\da-z-]+(?:\.[\da-z-]+)*))?(?=$|\s)/i;
 const NUMERIC_REGEX = /^\d+$/;
-function SemVer(baseVer, branchMappings, preReleasePrefix, context) {
+function SemVer(baseVer, isPrerelease, branchMappings, preReleasePrefix, context) {
     var _a, _b, _c, _d, _e, _f, _g;
     return __awaiter(this, void 0, void 0, function* () {
         // Validate the base SEMVER
@@ -350,7 +630,7 @@ function SemVer(baseVer, branchMappings, preReleasePrefix, context) {
             major: parseInt((_a = baseVerParts[1]) !== null && _a !== void 0 ? _a : '0', 10),
             minor: parseInt((_b = baseVerParts[2]) !== null && _b !== void 0 ? _b : '0', 10),
             patch: parseInt((_c = baseVerParts[3]) !== null && _c !== void 0 ? _c : '0', 10),
-            preRelease: preReleasePrefix + context.runNumber.toString(),
+            preRelease: isPrerelease ? preReleasePrefix + context.runNumber.toString() : '',
             metadata: `${created.replace(/[.:-]/g, '')}.sha-${context.sha.substring(0, 8)}`,
             buildNumber: context.runNumber.toString(),
             created,
@@ -1799,56 +2079,43 @@ var request = __webpack_require__(234);
 var graphql = __webpack_require__(668);
 var authToken = __webpack_require__(334);
 
-function _defineProperty(obj, key, value) {
-  if (key in obj) {
-    Object.defineProperty(obj, key, {
-      value: value,
-      enumerable: true,
-      configurable: true,
-      writable: true
-    });
-  } else {
-    obj[key] = value;
+function _objectWithoutPropertiesLoose(source, excluded) {
+  if (source == null) return {};
+  var target = {};
+  var sourceKeys = Object.keys(source);
+  var key, i;
+
+  for (i = 0; i < sourceKeys.length; i++) {
+    key = sourceKeys[i];
+    if (excluded.indexOf(key) >= 0) continue;
+    target[key] = source[key];
   }
 
-  return obj;
+  return target;
 }
 
-function ownKeys(object, enumerableOnly) {
-  var keys = Object.keys(object);
+function _objectWithoutProperties(source, excluded) {
+  if (source == null) return {};
+
+  var target = _objectWithoutPropertiesLoose(source, excluded);
+
+  var key, i;
 
   if (Object.getOwnPropertySymbols) {
-    var symbols = Object.getOwnPropertySymbols(object);
-    if (enumerableOnly) symbols = symbols.filter(function (sym) {
-      return Object.getOwnPropertyDescriptor(object, sym).enumerable;
-    });
-    keys.push.apply(keys, symbols);
-  }
+    var sourceSymbolKeys = Object.getOwnPropertySymbols(source);
 
-  return keys;
-}
-
-function _objectSpread2(target) {
-  for (var i = 1; i < arguments.length; i++) {
-    var source = arguments[i] != null ? arguments[i] : {};
-
-    if (i % 2) {
-      ownKeys(Object(source), true).forEach(function (key) {
-        _defineProperty(target, key, source[key]);
-      });
-    } else if (Object.getOwnPropertyDescriptors) {
-      Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
-    } else {
-      ownKeys(Object(source)).forEach(function (key) {
-        Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
-      });
+    for (i = 0; i < sourceSymbolKeys.length; i++) {
+      key = sourceSymbolKeys[i];
+      if (excluded.indexOf(key) >= 0) continue;
+      if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue;
+      target[key] = source[key];
     }
   }
 
   return target;
 }
 
-const VERSION = "3.1.2";
+const VERSION = "3.3.0";
 
 class Octokit {
   constructor(options = {}) {
@@ -1857,6 +2124,7 @@ class Octokit {
       baseUrl: request.request.endpoint.DEFAULTS.baseUrl,
       headers: {},
       request: Object.assign({}, options.request, {
+        // @ts-ignore internal usage only, no need to type
         hook: hook.bind(null, "request")
       }),
       mediaType: {
@@ -1880,9 +2148,7 @@ class Octokit {
     }
 
     this.request = request.request.defaults(requestDefaults);
-    this.graphql = graphql.withCustomRequest(this.request).defaults(_objectSpread2(_objectSpread2({}, requestDefaults), {}, {
-      baseUrl: requestDefaults.baseUrl.replace(/\/api\/v3$/, "/api")
-    }));
+    this.graphql = graphql.withCustomRequest(this.request).defaults(requestDefaults);
     this.log = Object.assign({
       debug: () => {},
       info: () => {},
@@ -1890,7 +2156,7 @@ class Octokit {
       error: console.error.bind(console)
     }, options.log);
     this.hook = hook; // (1) If neither `options.authStrategy` nor `options.auth` are set, the `octokit` instance
-    //     is unauthenticated. The `this.auth()` method is a no-op and no request hook is registred.
+    //     is unauthenticated. The `this.auth()` method is a no-op and no request hook is registered.
     // (2) If only `options.auth` is set, use the default token authentication strategy.
     // (3) If `options.authStrategy` is set then use it and pass in `options.auth`. Always pass own request as many strategies accept a custom request instance.
     // TODO: type `options.auth` based on `options.authStrategy`.
@@ -1909,8 +2175,21 @@ class Octokit {
         this.auth = auth;
       }
     } else {
-      const auth = options.authStrategy(Object.assign({
-        request: this.request
+      const {
+        authStrategy
+      } = options,
+            otherOptions = _objectWithoutProperties(options, ["authStrategy"]);
+
+      const auth = authStrategy(Object.assign({
+        request: this.request,
+        log: this.log,
+        // we pass the current octokit instance as well as its constructor options
+        // to allow for authentication strategies that return a new octokit instance
+        // that shares the same internal state as the current one. The original
+        // requirement for this was the "event-octokit" authentication strategy
+        // of https://github.com/probot/octokit-auth-probot.
+        octokit: this,
+        octokitOptions: otherOptions
       }, options.auth)); // @ts-ignore  ¯\_(ツ)_/¯
 
       hook.wrap("request", auth.hook);
@@ -2007,6 +2286,16 @@ function mergeDeep(defaults, options) {
   return result;
 }
 
+function removeUndefinedProperties(obj) {
+  for (const key in obj) {
+    if (obj[key] === undefined) {
+      delete obj[key];
+    }
+  }
+
+  return obj;
+}
+
 function merge(defaults, route, options) {
   if (typeof route === "string") {
     let [method, url] = route.split(" ");
@@ -2021,7 +2310,10 @@ function merge(defaults, route, options) {
   } // lowercase header names before merging with defaults to avoid duplicates
 
 
-  options.headers = lowercaseKeys(options.headers);
+  options.headers = lowercaseKeys(options.headers); // remove properties with undefined values before merging
+
+  removeUndefinedProperties(options);
+  removeUndefinedProperties(options.headers);
   const mergedOptions = mergeDeep(defaults || {}, options); // mediaType.previews arrays are merged, instead of overwritten
 
   if (defaults && defaults.mediaType.previews.length) {
@@ -2243,7 +2535,7 @@ function parse(options) {
   // https://fetch.spec.whatwg.org/#methods
   let method = options.method.toUpperCase(); // replace :varname with {varname} to make it RFC 6570 compatible
 
-  let url = (options.url || "/").replace(/:([a-z]\w+)/g, "{+$1}");
+  let url = (options.url || "/").replace(/:([a-z]\w+)/g, "{$1}");
   let headers = Object.assign({}, options.headers);
   let body;
   let parameters = omit(options, ["method", "baseUrl", "url", "headers", "request", "mediaType"]); // extract variable names from URL to calculate remaining variables later
@@ -2328,7 +2620,7 @@ function withDefaults(oldDefaults, newDefaults) {
   });
 }
 
-const VERSION = "6.0.6";
+const VERSION = "6.0.11";
 
 const userAgent = `octokit-endpoint.js/${VERSION} ${universalUserAgent.getUserAgent()}`; // DEFAULTS has all properties set that EndpointOptions has, except url.
 // So we use RequestParameters and add method as additional required property.
@@ -2411,7 +2703,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 var request = __webpack_require__(234);
 var universalUserAgent = __webpack_require__(429);
 
-const VERSION = "4.5.6";
+const VERSION = "4.6.1";
 
 class GraphqlError extends Error {
   constructor(request, response) {
@@ -2434,10 +2726,18 @@ class GraphqlError extends Error {
 }
 
 const NON_VARIABLE_OPTIONS = ["method", "baseUrl", "url", "headers", "request", "query", "mediaType"];
+const FORBIDDEN_VARIABLE_OPTIONS = ["query", "method", "url"];
 const GHES_V3_SUFFIX_REGEX = /\/api\/v3\/?$/;
 function graphql(request, query, options) {
-  if (typeof query === "string" && options && "query" in options) {
-    return Promise.reject(new Error(`[@octokit/graphql] "query" cannot be used as variable name`));
+  if (options) {
+    if (typeof query === "string" && "query" in options) {
+      return Promise.reject(new Error(`[@octokit/graphql] "query" cannot be used as variable name`));
+    }
+
+    for (const key in options) {
+      if (!FORBIDDEN_VARIABLE_OPTIONS.includes(key)) continue;
+      return Promise.reject(new Error(`[@octokit/graphql] "${key}" cannot be used as variable name`));
+    }
   }
 
   const parsedOptions = typeof query === "string" ? Object.assign({
@@ -3895,7 +4195,7 @@ var isPlainObject = __webpack_require__(62);
 var nodeFetch = _interopDefault(__webpack_require__(467));
 var requestError = __webpack_require__(537);
 
-const VERSION = "5.4.9";
+const VERSION = "5.4.14";
 
 function getBufferResponse(response) {
   return response.arrayBuffer();
@@ -4148,51 +4448,51 @@ module.exports.Collection = Hook.Collection
 /***/ 549:
 /***/ ((module) => {
 
-module.exports = addHook
+module.exports = addHook;
 
-function addHook (state, kind, name, hook) {
-  var orig = hook
+function addHook(state, kind, name, hook) {
+  var orig = hook;
   if (!state.registry[name]) {
-    state.registry[name] = []
+    state.registry[name] = [];
   }
 
-  if (kind === 'before') {
+  if (kind === "before") {
     hook = function (method, options) {
       return Promise.resolve()
         .then(orig.bind(null, options))
-        .then(method.bind(null, options))
-    }
+        .then(method.bind(null, options));
+    };
   }
 
-  if (kind === 'after') {
+  if (kind === "after") {
     hook = function (method, options) {
-      var result
+      var result;
       return Promise.resolve()
         .then(method.bind(null, options))
         .then(function (result_) {
-          result = result_
-          return orig(result, options)
+          result = result_;
+          return orig(result, options);
         })
         .then(function () {
-          return result
-        })
-    }
+          return result;
+        });
+    };
   }
 
-  if (kind === 'error') {
+  if (kind === "error") {
     hook = function (method, options) {
       return Promise.resolve()
         .then(method.bind(null, options))
         .catch(function (error) {
-          return orig(error, options)
-        })
-    }
+          return orig(error, options);
+        });
+    };
   }
 
   state.registry[name].push({
     hook: hook,
-    orig: orig
-  })
+    orig: orig,
+  });
 }
 
 
@@ -4201,33 +4501,32 @@ function addHook (state, kind, name, hook) {
 /***/ 670:
 /***/ ((module) => {
 
-module.exports = register
+module.exports = register;
 
-function register (state, name, method, options) {
-  if (typeof method !== 'function') {
-    throw new Error('method for before hook must be a function')
+function register(state, name, method, options) {
+  if (typeof method !== "function") {
+    throw new Error("method for before hook must be a function");
   }
 
   if (!options) {
-    options = {}
+    options = {};
   }
 
   if (Array.isArray(name)) {
     return name.reverse().reduce(function (callback, name) {
-      return register.bind(null, state, name, callback, options)
-    }, method)()
+      return register.bind(null, state, name, callback, options);
+    }, method)();
   }
 
-  return Promise.resolve()
-    .then(function () {
-      if (!state.registry[name]) {
-        return method(options)
-      }
+  return Promise.resolve().then(function () {
+    if (!state.registry[name]) {
+      return method(options);
+    }
 
-      return (state.registry[name]).reduce(function (method, registered) {
-        return registered.hook.bind(null, method, options)
-      }, method)()
-    })
+    return state.registry[name].reduce(function (method, registered) {
+      return registered.hook.bind(null, method, options);
+    }, method)();
+  });
 }
 
 
@@ -4236,22 +4535,24 @@ function register (state, name, method, options) {
 /***/ 819:
 /***/ ((module) => {
 
-module.exports = removeHook
+module.exports = removeHook;
 
-function removeHook (state, name, method) {
+function removeHook(state, name, method) {
   if (!state.registry[name]) {
-    return
+    return;
   }
 
   var index = state.registry[name]
-    .map(function (registered) { return registered.orig })
-    .indexOf(method)
+    .map(function (registered) {
+      return registered.orig;
+    })
+    .indexOf(method);
 
   if (index === -1) {
-    return
+    return;
   }
 
-  state.registry[name].splice(index, 1)
+  state.registry[name].splice(index, 1);
 }
 
 

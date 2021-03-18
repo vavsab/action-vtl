@@ -19,6 +19,7 @@ export interface Version {
 
 export async function SemVer(
   baseVer: string,
+  isPrerelease: boolean,
   branchMappings: Map<string, string>,
   preReleasePrefix: string,
   context: Context,
@@ -40,7 +41,7 @@ export async function SemVer(
     major: parseInt(baseVerParts[1] ?? '0', 10),
     minor: parseInt(baseVerParts[2] ?? '0', 10),
     patch: parseInt(baseVerParts[3] ?? '0', 10),
-    preRelease: preReleasePrefix + context.runNumber.toString(),
+    preRelease: isPrerelease ? preReleasePrefix + context.runNumber.toString() : '',
     metadata: `${created.replace(/[.:-]/g, '')}.sha-${context.sha.substring(0, 8)}`,
     buildNumber: context.runNumber.toString(),
     created,
@@ -103,7 +104,7 @@ export async function SemVer(
     ver.semVer += `+${ver.metadata}`;
   }
 
-  ver.semVerFourTupleNumeric = `${ver.major}.${ver.minor}.${ver.patch}.${ver.buildNumber}`
+  ver.semVerFourTupleNumeric = `${ver.major}.${ver.minor}.${ver.patch}.${ver.buildNumber}`;
 
   // Done
   return ver;

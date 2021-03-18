@@ -5,8 +5,15 @@
 # GitHub Action for Consistent Versioning, Taging, and Labeleling of Builds
 This GitHub Action creates consistent versioning, tagging, and labels for use in package/assembly versions and docker images.
 
-## Rule #1
-The most important rule of using this action is that you MUST bump the `baseVersion` input in your *first* commit after creating a release tag. Not doing this will have you posting pre-release packages/images for the same version that has been released, but after that release ... and I'm sure hilarity will ensue.
+## Version automatic increment
+All versions are stored inside of tags. After every commit inside of the main branch (you may override it by `releasesBranch` parameter) version is incremented acconding to [conventional commit messages](https://www.conventionalcommits.org/en/v1.0.0/) and saved into a new tag. There are some quick examples:
+1. Increment **MINOR** version: `feat(#task123): allow users to edit their profile`
+2. Increment **PATCH** version (please note that specifying task id is optional): `fix: remove memory leak inside of WebController`
+3. Add **MAJOR** version (by adding `!` sign): `feat(#task123)!: rewrite user JSON representation in API`
+4. Increment **MAJOR** version (by adding `BREAKING CHANGE` somewhere inside of commit message): `fix: Remove wrong user name\n BREAKING CHANGE: Changed user name format`
+5. If you do NOT follow the [conventional commit messages](https://www.conventionalcommits.org/en/v1.0.0/) then it will increment **PATCH**: `Rename user profile classes` 
+
+**NOTE**: Tags are only created in `main` branch. So if you work in a separate branch it will NOT create any release until you merge the changes into `main`.
 
 **Why not have another action that bumps the base version in all .yml files after a release tag is created?**
 Mostly because we have no idea which tuple of your base version needs to be bumped. Is the next milestone a major bump? Minor bump? Patch bump? Also, do you keep that in an environment variable? Secret? Directly in the yml passed to this action? In the yml as an `environment` option which is then passed to this version? ... I could go on, but I'll just refer back to Rule #1.
@@ -71,12 +78,13 @@ The following inputs can be passed to this action as `step.with` keys:
 
 | Name                | Type    | Description                        |
 |---------------------|---------|------------------------------------|
-| `baseVersion`       | String  | The base version of this repo. **This value must be manually updated following a release tag.** |
+| `baseVersion`       | String  | The base version of this repo. The first version of release. Applied if there is no any release yet. "v" prefix is optional. |
 | `dockerImage`       | String  | The name of the docker image to produce tags for. If omitted, no docker tags will be produced. (default ``) |
 | `gitHubToken`       | String  | The GITHUB_TOKEN value. Required to produce latest tags. (default ``) |
 | `branchMappings`    | List    | Used for mapping untagged branches to tag names. Mappings are one per line, each as `branch:target_name`. (default `main:edge`) |
 | `prereleasePrefix`  | String  | The <pre-release> prefix on an untagged run. (default `prerelease`) |
 | `versionFile`       | String  | A filename where the full SEMVER and commit SHA will be written. (default `VERSION`) |
+| `releasesBranch`       | String  | Branch where automatic releases should be created. Set to empty string to deactivate releases creation. (default `main`) |
 
 ## Examples:
 

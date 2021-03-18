@@ -4,7 +4,7 @@ author: 'Mapped <info@mapped.com>'
 
 inputs:
   baseVersion:
-    description: 'The base version of this repo. This value must be manually updated following a release tag.'
+    description: 'The base version of this repo. The first version of release. Applied if there is no any release yet. "v" prefix is optional.'
     required: true
   dockerImage:
     description: 'The name of the docker image to produce tags for. If omitted, no docker tags will be produced.'
@@ -26,6 +26,10 @@ inputs:
     description: 'A filename where the full SEMVER and commit SHA will be written.'
     required: false
     default: "VERSION"
+  releasesBranch:
+    description: 'Branch where automatic releases should be created. Set to empty string to deactivate releases creation'
+    required: false
+    default: "main"
 
 outputs:
   ver_major:
@@ -72,6 +76,9 @@ outputs:
     description: The org.opencontainers.image.licenses label
   oci_labels:
     description: The new-line separated list of OCI labels that can be passed to docker/build-push-action@v2
+
+  release_tag:
+    description: Release tag. Contains version or empty value if release was not created.
 
 runs:
   using: 'node12'
