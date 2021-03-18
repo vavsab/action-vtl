@@ -193,7 +193,7 @@ function logAndOutputObject(key, value) {
     }
 }
 function run() {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     return __awaiter(this, void 0, void 0, function* () {
         try {
             // Log the full context
@@ -216,15 +216,16 @@ function run() {
             const gitHubToken = (_c = core.getInput('gitHubToken')) !== null && _c !== void 0 ? _c : '';
             // Get releases branch
             const releasesBranch = (_d = core.getInput('releasesBranch')) !== null && _d !== void 0 ? _d : '';
-            // Get initial release tag
-            const initialReleaseTag = (_e = core.getInput('initialReleaseTag')) !== null && _e !== void 0 ? _e : '';
             // Create a release tag
-            const releaseTagVersion = yield releasetag_1.CreateReleaseTag(github.context, gitHubToken, releasesBranch, initialReleaseTag);
+            const createReleaseTagRes = yield releasetag_1.CreateReleaseTag(github.context, gitHubToken, releasesBranch, baseVer);
+            const baseVerOverride = ((_e = createReleaseTagRes.createdReleaseTag) !== null && _e !== void 0 ? _e : createReleaseTagRes.previousReleaseTag).toString();
+            const isPrerelease = createReleaseTagRes.createdReleaseTag == null;
             // Process the input
-            const verInfo = yield version_1.SemVer(baseVer, branchMappings, preReleasePrefix, github.context, releaseTagVersion);
+            const verInfo = yield version_1.SemVer(baseVerOverride, isPrerelease, branchMappings, preReleasePrefix, github.context);
             const ociInfo = yield oci_1.GetOCI(verInfo, github.context);
             // Log and push the values back to the workflow runner
-            logAndOutputObject('release_tag', releaseTagVersion === null || releaseTagVersion === void 0 ? void 0 : releaseTagVersion.toString());
+            logAndOutputObject('release_tag', (_f = createReleaseTagRes.createdReleaseTag) === null || _f === void 0 ? void 0 : _f.toString());
+            logAndOutputObject('release_previousTag', createReleaseTagRes.previousReleaseTag.toString());
             logAndOutputObject('ver', verInfo);
             logAndOutputObject('oci', ociInfo);
             // Add docker tags
@@ -359,69 +360,69 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.ReleaseTagVersion = exports.CreateReleaseTag = void 0;
 const github = __importStar(__webpack_require__(438));
 const core = __importStar(__webpack_require__(186));
-function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag) {
+function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (!releasesBranch) {
-            return null;
-        }
-        if (context.eventName !== 'push') {
-            return null;
-        }
-        const branchRegExp = new RegExp(`refs/heads/${releasesBranch}`);
-        // Tagging is allowed only for main branch
-        if (!branchRegExp.test(context.ref)) {
-            return null;
-        }
         if (!token) {
-            return null;
+            throw Error('GitHut token is missing');
         }
-        const octokit = github.getOctokit(token);
-        const tags = yield octokit.request('GET /repos/{owner}/{repo}/tags', {
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            per_page: 100,
-        });
-        let latestVersion = null;
-        let latestVersionCommit = null;
-        for (const tag of tags.data) {
+        const baseVersion = ReleaseTagVersion.parse(baseVersionStr);
+        if (baseVersion === null) {
+            throw Error(`Failed to parse base version '${baseVersionStr}'`);
+        }
+        const res = {
+            createdReleaseTag: null,
+            previousReleaseTag: baseVersion,
+            previousReleaseTagCommitSha: null,
+        };
+        const gitHubClient = new GitHubClient(token, context.repo.owner, context.repo.repo);
+        const tags = yield gitHubClient.getTags();
+        const commits = yield gitHubClient.getCommits(context.sha);
+        // Find the previous tag
+        for (const tag of tags) {
             const ver = ReleaseTagVersion.parse(tag.name);
+            // Skip releases with invalid format
             if (ver === null) {
                 continue;
             }
-            if (latestVersion === null || ver.isGreaterThan(latestVersion)) {
-                latestVersion = ver;
-                latestVersionCommit = tag.commit.sha;
+            // Skip releases that are not related to the current commit.
+            // For example this build may run inside of a separate branch that is behind main branch.
+            // Or this build may be a rerun of some failed build several commit earlier in main branch.
+            if (!commits.find(x => x.sha === tag.commit.sha)) {
+                continue;
+            }
+            if (res.previousReleaseTag === null || ver.isGreaterThan(res.previousReleaseTag)) {
+                res.previousReleaseTag = ver;
+                res.previousReleaseTagCommitSha = tag.commit.sha;
             }
         }
-        if (latestVersion === null && initialReleaseTag) {
-            core.info(`Could not find any valid release tag. Trying to use initial tag from config...`);
-            latestVersion = ReleaseTagVersion.parse(initialReleaseTag);
+        // Do not create release if developer intentionally switched this feature off
+        if (!releasesBranch) {
+            return res;
         }
-        if (latestVersion === null) {
-            core.info(`Could not find any valid release tag. Initial tag parameter is not set or invalid. Setting version to v1.0.0`);
-            latestVersion = new ReleaseTagVersion(1, 0, 0);
+        // Do not create releases for tags and pull requests etc. Creation is only allowed for simple commit pushes.
+        if (context.eventName !== 'push') {
+            return res;
         }
-        const nextVersion = ReleaseTagVersion.parse(latestVersion.toString());
-        if (nextVersion == null) {
-            throw Error('Failed to parse latest version');
+        const branchRegExp = new RegExp(`refs/heads/${releasesBranch}`);
+        // Tagging is allowed only for one selected branch (usually main branch)
+        if (!branchRegExp.test(context.ref)) {
+            return res;
         }
-        let incrementMajor = false;
-        let incrementMinor = false;
-        let incrementPatch = false;
-        let reachedLatestReleaseCommit = false;
+        res.createdReleaseTag = ReleaseTagVersion.parse(res.previousReleaseTag.toString());
+        if (res.createdReleaseTag == null) {
+            throw Error(`Failed to clone previous version '${res.previousReleaseTag.toString()}'`);
+        }
         let releaseComments = '';
         // Do not increment version if there is no any valid release tag yet.
-        if (latestVersionCommit !== null) {
-            const commits = yield octokit.request('GET /repos/{owner}/{repo}/commits', {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                sha: releasesBranch,
-                per_page: 100,
-            });
-            const semanticCommitRegExp = /(feat|fix|chore|refactor|style|test|docs|BREAKING.?CHANGE)(\(#(\w{0,15})\))?:\s?(.*)/i;
+        if (res.previousReleaseTagCommitSha === null) {
+            let incrementMajor = false;
+            let incrementMinor = false;
+            let incrementPatch = false;
+            let reachedLatestReleaseCommit = false;
+            const semanticCommitRegExp = /(feat|fix|chore|refactor|style|test|docs)(\(#(\w{0,15})\))?:\s?(.*)/i;
             // Choose the most significant change among all commits since previous release
-            for (const commit of commits.data) {
-                if (commit.sha === latestVersionCommit) {
+            for (const commit of commits) {
+                if (commit.sha === res.previousReleaseTagCommitSha) {
                     reachedLatestReleaseCommit = true;
                     break;
                 }
@@ -446,43 +447,75 @@ function CreateReleaseTag(context, token, releasesBranch, initialReleaseTag) {
                 incrementPatch = true;
             }
             if (!reachedLatestReleaseCommit) {
-                core.warning(`Failed to reach the latest release tag '${latestVersion.toString()}' (${latestVersionCommit}) inside of the '${releasesBranch}' branch. Skipped tag creation.`);
-                return null;
+                throw Error(`Failed to reach the latest release tag '${res.previousReleaseTag.toString()}' (${res.previousReleaseTagCommitSha}) inside of the '${releasesBranch}' branch. Skipped tag creation.`);
             }
             if (incrementMajor) {
-                nextVersion.incrementMajor();
+                res.createdReleaseTag.incrementMajor();
             }
             else if (incrementMinor) {
-                nextVersion.incrementMinor();
+                res.createdReleaseTag.incrementMinor();
             }
             else if (incrementPatch) {
-                nextVersion.incrementPatch();
+                res.createdReleaseTag.incrementPatch();
             }
             else {
-                core.warning('Did not find any new commits since the latest release tag. Skipped release creation.');
-                return null;
+                core.warning('Did not find any new commit since the latest release tag. Seems that release is already created.');
+                return res;
             }
         }
-        const nextTagName = nextVersion.toString();
-        yield octokit.request('POST /repos/{owner}/{repo}/git/tags', {
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            tag: nextTagName,
-            message: releaseComments,
-            object: context.sha,
-            type: 'commit',
-        });
-        yield octokit.request('POST /repos/{owner}/{repo}/git/refs', {
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            ref: `refs/tags/${nextTagName}`,
-            sha: context.sha,
-        });
+        const nextTagName = res.createdReleaseTag.toString();
+        gitHubClient.createTag(nextTagName, releaseComments, context.sha);
         core.info(`Created a tag '${nextTagName}'`);
-        return nextVersion;
+        return res;
     });
 }
 exports.CreateReleaseTag = CreateReleaseTag;
+class GitHubClient {
+    constructor(token, owner, repo) {
+        this.owner = owner;
+        this.repo = repo;
+        this.octokit = github.getOctokit(token);
+    }
+    getTags() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const res = yield this.octokit.request('GET /repos/{owner}/{repo}/tags', {
+                owner: this.owner,
+                repo: this.repo,
+                per_page: 100,
+            });
+            return res.data;
+        });
+    }
+    getCommits(startFromSha) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const res = yield this.octokit.request('GET /repos/{owner}/{repo}/commits', {
+                owner: this.owner,
+                repo: this.repo,
+                sha: startFromSha,
+                per_page: 100,
+            });
+            return res.data;
+        });
+    }
+    createTag(tagName, comments, commitSha) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.octokit.request('POST /repos/{owner}/{repo}/git/tags', {
+                owner: this.owner,
+                repo: this.repo,
+                tag: tagName,
+                message: comments,
+                object: commitSha,
+                type: 'commit',
+            });
+            yield this.octokit.request('POST /repos/{owner}/{repo}/git/refs', {
+                owner: this.owner,
+                repo: this.repo,
+                ref: `refs/tags/${tagName}`,
+                sha: commitSha,
+            });
+        });
+    }
+}
 class ReleaseTagVersion {
     constructor(major, minor, patch) {
         this.major = major;
@@ -537,7 +570,7 @@ class ReleaseTagVersion {
     }
 }
 exports.ReleaseTagVersion = ReleaseTagVersion;
-ReleaseTagVersion.regexp = /v(\d+).(\d+).(\d+)/;
+ReleaseTagVersion.regexp = /v?(\d+).(\d+).(\d+)/;
 
 
 /***/ }),
@@ -560,7 +593,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.compareSemvers = exports.SemVer = exports.SEMVER_REGEX = void 0;
 exports.SEMVER_REGEX = /(?<=^v?|\sv?)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[\da-z-]*[a-z-][\da-z-]*)(?:\.(?:0|[1-9]\d*|[\da-z-]*[a-z-][\da-z-]*))*))?(?:\+([\da-z-]+(?:\.[\da-z-]+)*))?(?=$|\s)/i;
 const NUMERIC_REGEX = /^\d+$/;
-function SemVer(baseVer, branchMappings, preReleasePrefix, context, releaseTagVersion = null) {
+function SemVer(baseVer, isPrerelease, branchMappings, preReleasePrefix, context) {
     var _a, _b, _c, _d, _e, _f, _g;
     return __awaiter(this, void 0, void 0, function* () {
         // Validate the base SEMVER
@@ -578,7 +611,7 @@ function SemVer(baseVer, branchMappings, preReleasePrefix, context, releaseTagVe
             major: parseInt((_a = baseVerParts[1]) !== null && _a !== void 0 ? _a : '0', 10),
             minor: parseInt((_b = baseVerParts[2]) !== null && _b !== void 0 ? _b : '0', 10),
             patch: parseInt((_c = baseVerParts[3]) !== null && _c !== void 0 ? _c : '0', 10),
-            preRelease: preReleasePrefix + context.runNumber.toString(),
+            preRelease: isPrerelease ? preReleasePrefix + context.runNumber.toString() : '',
             metadata: `${created.replace(/[.:-]/g, '')}.sha-${context.sha.substring(0, 8)}`,
             buildNumber: context.runNumber.toString(),
             created,
@@ -625,13 +658,6 @@ function SemVer(baseVer, branchMappings, preReleasePrefix, context, releaseTagVe
             }
             else {
                 ver.tag = branchName.toLowerCase();
-            }
-            // Override version with a release tag if it was created
-            if (releaseTagVersion) {
-                ver.preRelease = '';
-                ver.major = releaseTagVersion.getMajor();
-                ver.minor = releaseTagVersion.getMinor();
-                ver.patch = releaseTagVersion.getPatch();
             }
         }
         else {

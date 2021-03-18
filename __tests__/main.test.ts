@@ -63,9 +63,9 @@ test('invalid semver', async () => {
   const inputs = ['1a.2.3', '1.2.3.4'];
   for (const input of inputs) {
     const expected = `base-version of "${input}" is not a valid SEMVER`;
-    await expect(SemVer(input, goodMappings, goodPrefix[0], generateContext(0, 0))).rejects.toThrow(
-      expected,
-    );
+    await expect(
+      SemVer(input, true, goodMappings, goodPrefix[0], generateContext(0, 0)),
+    ).rejects.toThrow(expected);
   }
 });
 
@@ -80,7 +80,7 @@ test('bad tag semver', async () => {
     let ctx = generateContext(0, 5);
     ctx.ref = input;
     const expected = `Tag of "${input.split('/').pop()}" is not a valid SEMVER`;
-    await expect(SemVer(goodBaseVer[0], goodMappings, goodPrefix[0], ctx)).rejects.toThrow(
+    await expect(SemVer(goodBaseVer[0], true, goodMappings, goodPrefix[0], ctx)).rejects.toThrow(
       expected,
     );
   }
@@ -89,7 +89,7 @@ test('bad tag semver', async () => {
 test('push on mapped branch', async () => {
   let expSemVerNoMeta = goodBaseVer[0] + '-' + goodPrefix[0] + '.' + goodRunNo[0];
   await expect(
-    SemVer(goodBaseVer[0], goodMappings, goodPrefix[0], generateContext(0, 0)),
+    SemVer(goodBaseVer[0], true, goodMappings, goodPrefix[0], generateContext(0, 0)),
   ).resolves.toMatchObject({
     major: 1,
     minor: 2,
@@ -106,7 +106,7 @@ test('push on mapped branch', async () => {
 test('push on unmapped branch', async () => {
   let expSemVerNoMeta = '9.6.1-' + goodRunNo[1];
   await expect(
-    SemVer(goodBaseVer[3], goodMappings, goodPrefix[1], generateContext(1, 2)),
+    SemVer(goodBaseVer[3], true, goodMappings, goodPrefix[1], generateContext(1, 2)),
   ).resolves.toMatchObject({
     major: 9,
     minor: 6,
@@ -123,7 +123,7 @@ test('push on unmapped branch', async () => {
 test('tag 1', async () => {
   let expSemVerNoMeta = '1.3.5';
   await expect(
-    SemVer(goodBaseVer[0], goodMappings, goodPrefix[1], generateContext(0, 5)),
+    SemVer(goodBaseVer[0], true, goodMappings, goodPrefix[1], generateContext(0, 5)),
   ).resolves.toMatchObject({
     major: 1,
     minor: 3,
@@ -140,7 +140,7 @@ test('tag 1', async () => {
 test('tag 2', async () => {
   let expSemVerNoMeta = '2.4.6-beta.2';
   await expect(
-    SemVer(goodBaseVer[2], goodMappings, goodPrefix[0], generateContext(1, 6)),
+    SemVer(goodBaseVer[2], true, goodMappings, goodPrefix[0], generateContext(1, 6)),
   ).resolves.toMatchObject({
     major: 2,
     minor: 4,
@@ -157,7 +157,7 @@ test('tag 2', async () => {
 test('pr', async () => {
   let expSemVerNoMeta = '0.1.0-' + goodPrefix[2] + '.' + goodRunNo[1];
   await expect(
-    SemVer(goodBaseVer[1], goodMappings, goodPrefix[2], generateContext(1, 1)),
+    SemVer(goodBaseVer[1], true, goodMappings, goodPrefix[2], generateContext(1, 1)),
   ).resolves.toMatchObject({
     major: 0,
     minor: 1,
@@ -220,7 +220,7 @@ test('compareSemvers with pre-release and metadata', async () => {
 
 test('docker info - push', async () => {
   let ctx = generateContext(1, 0);
-  let verInfo = await SemVer(goodBaseVer[1], goodMappings, goodPrefix[2], ctx);
+  let verInfo = await SemVer(goodBaseVer[1], true, goodMappings, goodPrefix[2], ctx);
   await expect(GetDockerInfo('test/container', verInfo, ctx, '')).resolves.toMatchObject({
     tags: ['test/container:edge', 'test/container:sha-' + goodSha8].join(','),
     push: 'true',
@@ -229,7 +229,7 @@ test('docker info - push', async () => {
 
 test('docker info - tag', async () => {
   let ctx = generateContext(1, 5);
-  let verInfo = await SemVer(goodBaseVer[1], goodMappings, goodPrefix[2], ctx);
+  let verInfo = await SemVer(goodBaseVer[1], true, goodMappings, goodPrefix[2], ctx);
   await expect(GetDockerInfo('test/container', verInfo, ctx, '')).resolves.toMatchObject({
     tags: ['test/container:1.3.5', 'test/container:1', 'test/container:1.3'].join(','),
     push: 'true',
@@ -238,7 +238,7 @@ test('docker info - tag', async () => {
 
 test('docker info - pr', async () => {
   let ctx = generateContext(1, 1);
-  let verInfo = await SemVer(goodBaseVer[1], goodMappings, goodPrefix[2], ctx);
+  let verInfo = await SemVer(goodBaseVer[1], true, goodMappings, goodPrefix[2], ctx);
   await expect(GetDockerInfo('test/container', verInfo, ctx, '')).resolves.toMatchObject({
     tags: 'test/container:pr-37',
     push: 'false',

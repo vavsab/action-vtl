@@ -22,7 +22,16 @@ test('parse version', async () => {
   expect(ver.getMajor()).toEqual(3);
   expect(ver.getMinor()).toEqual(8);
   expect(ver.getPatch()).toEqual(4);
-  expect(Ver.parse('3.8.4')).toBeNull();
+
+  const verNoPrefix = Ver.parse('3.8.4');
+  if (verNoPrefix == null) {
+    throw 'verNoPrefix is null';
+  }
+
+  expect(verNoPrefix.getMajor()).toEqual(3);
+  expect(verNoPrefix.getMinor()).toEqual(8);
+  expect(verNoPrefix.getPatch()).toEqual(4);
+
   expect(Ver.parse(null)).toBeNull();
   expect(Ver.parse('1.2.a')).toBeNull();
   expect(Ver.parse('invalid')).toBeNull();
