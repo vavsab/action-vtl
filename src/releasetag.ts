@@ -55,7 +55,7 @@ export async function CreateReleaseTag(
       continue;
     }
 
-    if (res.previousReleaseTag === null || ver.isGreaterThan(res.previousReleaseTag)) {
+    if (ver.isGreaterThan(res.previousReleaseTag)) {
       res.previousReleaseTag = ver;
       res.previousReleaseTagCommitSha = tag.commit.sha;
     }
@@ -86,7 +86,7 @@ export async function CreateReleaseTag(
   let releaseComments = '';
 
   // Do not increment version if there is no any valid release tag yet.
-  if (res.previousReleaseTagCommitSha === null) {
+  if (res.previousReleaseTagCommitSha !== null) {
     let incrementMajor = false;
     let incrementMinor = false;
     let incrementPatch = false;
