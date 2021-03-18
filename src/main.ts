@@ -62,7 +62,7 @@ async function run(): Promise<void> {
     const gitHubToken = core.getInput('gitHubToken') ?? '';
 
     // Get releases branch
-    const releasesBranch = core.getInput('releasesBranch') ?? '';
+    const releasesBranch = core.getInput('releasesBranch')?.trim() ?? '';
 
     // Create a release tag
     const createReleaseTagRes = await CreateReleaseTag(
@@ -72,10 +72,13 @@ async function run(): Promise<void> {
       baseVer,
     );
 
-    const baseVerOverride = (
-      createReleaseTagRes.createdReleaseTag ?? createReleaseTagRes.previousReleaseTag
-    ).toString();
-    const isPrerelease = createReleaseTagRes.createdReleaseTag == null;
+    let baseVerOverride = createReleaseTagRes.previousReleaseTag.toString();
+    let isPrerelease = true;
+
+    if (createReleaseTagRes.createdReleaseTag) {
+      baseVerOverride = createReleaseTagRes.createdReleaseTag.toString();
+      isPrerelease = false;
+    }
 
     // Process the input
     const verInfo = await SemVer(

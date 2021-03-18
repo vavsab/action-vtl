@@ -22,3 +22,4 @@ jobs:
       - uses: ./
         with:
           baseVersion: 1.2.3
+          releasesBranch: # Do not create releases for action-vtl

@@ -215,11 +215,15 @@ function run() {
             // Get the github token
             const gitHubToken = (_c = core.getInput('gitHubToken')) !== null && _c !== void 0 ? _c : '';
             // Get releases branch
-            const releasesBranch = (_d = core.getInput('releasesBranch')) !== null && _d !== void 0 ? _d : '';
+            const releasesBranch = (_e = (_d = core.getInput('releasesBranch')) === null || _d === void 0 ? void 0 : _d.trim()) !== null && _e !== void 0 ? _e : '';
             // Create a release tag
             const createReleaseTagRes = yield releasetag_1.CreateReleaseTag(github.context, gitHubToken, releasesBranch, baseVer);
-            const baseVerOverride = ((_e = createReleaseTagRes.createdReleaseTag) !== null && _e !== void 0 ? _e : createReleaseTagRes.previousReleaseTag).toString();
-            const isPrerelease = createReleaseTagRes.createdReleaseTag == null;
+            let baseVerOverride = createReleaseTagRes.previousReleaseTag.toString();
+            let isPrerelease = true;
+            if (createReleaseTagRes.createdReleaseTag) {
+                baseVerOverride = createReleaseTagRes.createdReleaseTag.toString();
+                isPrerelease = false;
+            }
             // Process the input
             const verInfo = yield version_1.SemVer(baseVerOverride, isPrerelease, branchMappings, preReleasePrefix, github.context);
             const ociInfo = yield oci_1.GetOCI(verInfo, github.context);
@@ -363,7 +367,7 @@ const core = __importStar(__webpack_require__(186));
 function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
     return __awaiter(this, void 0, void 0, function* () {
         if (!token) {
-            throw Error('GitHut token is missing');
+            throw Error('GitHub token is missing');
         }
         const baseVersion = ReleaseTagVersion.parse(baseVersionStr);
         if (baseVersion === null) {
@@ -419,27 +423,30 @@ function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
             let incrementMinor = false;
             let incrementPatch = false;
             let reachedLatestReleaseCommit = false;
-            const semanticCommitRegExp = /(feat|fix|chore|refactor|style|test|docs)(\(#(\w{0,15})\))?:\s?(.*)/i;
+            const semanticCommitRegExp = /(feat|fix|chore|refactor|style|test|docs)(!?)(\(#(\w{0,15})\))?:\s?(.*)/i;
             // Choose the most significant change among all commits since previous release
             for (const commit of commits) {
                 if (commit.sha === res.previousReleaseTagCommitSha) {
                     reachedLatestReleaseCommit = true;
                     break;
                 }
-                const matches = semanticCommitRegExp.exec(commit.commit.message);
-                if (commit.commit.message) {
-                    releaseComments += `\n${commit.commit.message}`;
+                const message = commit.commit.message;
+                const matches = semanticCommitRegExp.exec(message);
+                if (message) {
+                    releaseComments += `\n${message}`;
                 }
                 if (matches === null) {
                     // Always increment patch if developer does not write messages in "semantic commits" manner (https://gist.github.com/joshbuchea/6f47e86d2510bce28f8e7f42ae84c716)
                     incrementPatch = true;
                     continue;
                 }
-                const commitType = matches[1].toLowerCase();
-                if (commitType.startsWith('breaking')) {
+                // Breaking change rules described here https://www.conventionalcommits.org/en/v1.0.0/
+                const breakingChangeSign = matches[2];
+                if (breakingChangeSign || message.toUpperCase().includes('BREAKING CHANGE')) {
                     incrementMajor = true;
                     continue;
                 }
+                const commitType = matches[1];
                 if (commitType === 'feat') {
                     incrementMinor = true;
                     continue;

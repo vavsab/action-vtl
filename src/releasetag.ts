@@ -21,7 +21,7 @@ export async function CreateReleaseTag(
   baseVersionStr: string | null,
 ): Promise<CreateReleaseResult> {
   if (!token) {
-    throw Error('GitHut token is missing');
+    throw Error('GitHub token is missing');
   }
 
   const baseVersion = ReleaseTagVersion.parse(baseVersionStr);
@@ -91,7 +91,7 @@ export async function CreateReleaseTag(
     let incrementMinor = false;
     let incrementPatch = false;
     let reachedLatestReleaseCommit = false;
-    const semanticCommitRegExp = /(feat|fix|chore|refactor|style|test|docs)(\(#(\w{0,15})\))?:\s?(.*)/i;
+    const semanticCommitRegExp = /(feat|fix|chore|refactor|style|test|docs)(!?)(\(#(\w{0,15})\))?:\s?(.*)/i;
 
     // Choose the most significant change among all commits since previous release
     for (const commit of commits) {
@@ -100,10 +100,11 @@ export async function CreateReleaseTag(
         break;
       }
 
-      const matches = semanticCommitRegExp.exec(commit.commit.message);
+      const message = commit.commit.message;
+      const matches = semanticCommitRegExp.exec(message);
 
-      if (commit.commit.message) {
-        releaseComments += `\n${commit.commit.message}`;
+      if (message) {
+        releaseComments += `\n${message}`;
       }
 
       if (matches === null) {
@@ -112,12 +113,14 @@ export async function CreateReleaseTag(
         continue;
       }
 
-      const commitType = matches[1].toLowerCase();
-      if (commitType.startsWith('breaking')) {
+      // Breaking change rules described here https://www.conventionalcommits.org/en/v1.0.0/
+      const breakingChangeSign = matches[2];
+      if (breakingChangeSign || message.toUpperCase().includes('BREAKING CHANGE')) {
         incrementMajor = true;
         continue;
       }
 
+      const commitType = matches[1];
       if (commitType === 'feat') {
         incrementMinor = true;
         continue;
