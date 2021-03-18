@@ -390,7 +390,7 @@ function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
             if (!commits.find(x => x.sha === tag.commit.sha)) {
                 continue;
             }
-            if (res.previousReleaseTag === null || ver.isGreaterThan(res.previousReleaseTag)) {
+            if (ver.isGreaterThan(res.previousReleaseTag)) {
                 res.previousReleaseTag = ver;
                 res.previousReleaseTagCommitSha = tag.commit.sha;
             }
@@ -414,7 +414,7 @@ function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
         }
         let releaseComments = '';
         // Do not increment version if there is no any valid release tag yet.
-        if (res.previousReleaseTagCommitSha === null) {
+        if (res.previousReleaseTagCommitSha !== null) {
             let incrementMajor = false;
             let incrementMinor = false;
             let incrementPatch = false;
@@ -447,7 +447,7 @@ function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
                 incrementPatch = true;
             }
             if (!reachedLatestReleaseCommit) {
-                throw Error(`Failed to reach the latest release tag '${res.previousReleaseTag.toString()}' (${res.previousReleaseTagCommitSha}) inside of the '${releasesBranch}' branch. Skipped tag creation.`);
+                throw Error(`Failed to reach the latest release tag '${res.previousReleaseTag.toString()}' (${res.previousReleaseTagCommitSha}) inside of the '${releasesBranch}' branch.`);
             }
             if (incrementMajor) {
                 res.createdReleaseTag.incrementMajor();
