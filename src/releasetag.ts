@@ -130,7 +130,7 @@ export async function CreateReleaseTag(
       throw Error(
         `Failed to reach the latest release tag '${res.previousReleaseTag.toString()}' (${
           res.previousReleaseTagCommitSha
-        }) inside of the '${releasesBranch}' branch. Skipped tag creation.`,
+        }) inside of the '${releasesBranch}' branch.`,
       );
     }
 
