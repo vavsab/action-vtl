@@ -423,7 +423,7 @@ function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
             let incrementMinor = false;
             let incrementPatch = false;
             let reachedLatestReleaseCommit = false;
-            const semanticCommitRegExp = /(feat|fix|chore|refactor|style|test|docs)(!?)(\(#(\w{0,15})\))?:\s?(.*)/i;
+            const semanticCommitRegExp = /(feat|fix|chore|refactor|style|test|docs)(\(#(\w{0,15})\))?(!)?:\s?(.*)/i;
             // Choose the most significant change among all commits since previous release
             for (const commit of commits) {
                 if (commit.sha === res.previousReleaseTagCommitSha) {
@@ -441,7 +441,7 @@ function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
                     continue;
                 }
                 // Breaking change rules described here https://www.conventionalcommits.org/en/v1.0.0/
-                const breakingChangeSign = matches[2];
+                const breakingChangeSign = matches[4];
                 if (breakingChangeSign || message.toUpperCase().includes('BREAKING CHANGE')) {
                     incrementMajor = true;
                     continue;

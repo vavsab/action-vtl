@@ -103,6 +103,17 @@ test('push on mapped branch', async () => {
   });
 });
 
+test('push without prerelease', async () => {
+  const ver = await SemVer(
+    goodBaseVer[0],
+    false,
+    goodMappings,
+    goodPrefix[0],
+    generateContext(0, 0),
+  );
+  expect(ver.preRelease).toBe('');
+});
+
 test('push on unmapped branch', async () => {
   let expSemVerNoMeta = '9.6.1-' + goodRunNo[1];
   await expect(
