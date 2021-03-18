@@ -72,18 +72,10 @@ async function run(): Promise<void> {
       baseVer,
     );
 
-    let baseVerOverride = createReleaseTagRes.previousReleaseTag.toString();
-    let isPrerelease = true;
-
-    if (createReleaseTagRes.createdReleaseTag) {
-      baseVerOverride = createReleaseTagRes.createdReleaseTag.toString();
-      isPrerelease = false;
-    }
-
     // Process the input
     const verInfo = await SemVer(
-      baseVerOverride,
-      isPrerelease,
+      createReleaseTagRes.getBaseVersionOverride(),
+      createReleaseTagRes.isPrerelease(),
       branchMappings,
       preReleasePrefix,
       github.context,

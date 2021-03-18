@@ -3,15 +3,25 @@ import {Context} from '@actions/github/lib/context';
 import * as core from '@actions/core';
 import {Octokit} from '@octokit/core';
 
-export interface CreateReleaseResult {
-  // Not null if push was made in releases branch (usually main) or if someone decided to rerun the latest build. Otherwise set to null.
-  createdReleaseTag: ReleaseTagVersion | null;
+export class CreateReleaseResult {
+  constructor(
+    // Not null if push was made in releases branch (usually main) or if someone decided to rerun the latest build. Otherwise set to null.
+    public createdReleaseTag: ReleaseTagVersion | null,
 
-  // Represents previous version. Or the latest version if release was not created. Or initial version if there are no any valid releases yet.
-  previousReleaseTag: ReleaseTagVersion;
+    // Represents previous version. Or the latest version if release was not created. Or initial version if there are no any valid releases yet.
+    public previousReleaseTag: ReleaseTagVersion,
 
-  // Previous version commit sha. Null if previous version was not created yet (only in case when there are no valid release tags in repo).
-  previousReleaseTagCommitSha: string | null;
+    // Previous version commit sha. Null if previous version was not created yet (only in case when there are no valid release tags in repo).
+    public previousReleaseTagCommitSha: string | null,
+  ) {}
+
+  isPrerelease(): boolean {
+    return this.createdReleaseTag === null;
+  }
+
+  getBaseVersionOverride(): string {
+    return (this.createdReleaseTag ?? this.previousReleaseTag).toString();
+  }
 }
 
 export async function CreateReleaseTag(
@@ -25,11 +35,7 @@ export async function CreateReleaseTag(
     throw Error(`Failed to parse base version '${baseVersionStr}'`);
   }
 
-  const res: CreateReleaseResult = {
-    createdReleaseTag: null,
-    previousReleaseTag: baseVersion,
-    previousReleaseTagCommitSha: null,
-  };
+  const res = new CreateReleaseResult(null, baseVersion, null);
 
   if (!token) {
     core.info('GitHub token is missing. Skipping release creation...');

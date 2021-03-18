@@ -218,14 +218,8 @@ function run() {
             const releasesBranch = (_e = (_d = core.getInput('releasesBranch')) === null || _d === void 0 ? void 0 : _d.trim()) !== null && _e !== void 0 ? _e : '';
             // Create a release tag
             const createReleaseTagRes = yield releasetag_1.CreateReleaseTag(github.context, gitHubToken, releasesBranch, baseVer);
-            let baseVerOverride = createReleaseTagRes.previousReleaseTag.toString();
-            let isPrerelease = true;
-            if (createReleaseTagRes.createdReleaseTag) {
-                baseVerOverride = createReleaseTagRes.createdReleaseTag.toString();
-                isPrerelease = false;
-            }
             // Process the input
-            const verInfo = yield version_1.SemVer(baseVerOverride, isPrerelease, branchMappings, preReleasePrefix, github.context);
+            const verInfo = yield version_1.SemVer(createReleaseTagRes.getBaseVersionOverride(), createReleaseTagRes.isPrerelease(), branchMappings, preReleasePrefix, github.context);
             const ociInfo = yield oci_1.GetOCI(verInfo, github.context);
             // Log and push the values back to the workflow runner
             logAndOutputObject('release_tag', (_f = createReleaseTagRes.createdReleaseTag) === null || _f === void 0 ? void 0 : _f.toString());
@@ -361,22 +355,39 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.ReleaseTagVersion = exports.CreateReleaseTag = void 0;
+exports.ReleaseTagVersion = exports.CreateReleaseTag = exports.CreateReleaseResult = void 0;
 const github = __importStar(__webpack_require__(438));
 const core = __importStar(__webpack_require__(186));
+class CreateReleaseResult {
+    constructor(
+    // Not null if push was made in releases branch (usually main) or if someone decided to rerun the latest build. Otherwise set to null.
+    createdReleaseTag, 
+    // Represents previous version. Or the latest version if release was not created. Or initial version if there are no any valid releases yet.
+    previousReleaseTag, 
+    // Previous version commit sha. Null if previous version was not created yet (only in case when there are no valid release tags in repo).
+    previousReleaseTagCommitSha) {
+        this.createdReleaseTag = createdReleaseTag;
+        this.previousReleaseTag = previousReleaseTag;
+        this.previousReleaseTagCommitSha = previousReleaseTagCommitSha;
+    }
+    isPrerelease() {
+        return this.createdReleaseTag === null;
+    }
+    getBaseVersionOverride() {
+        var _a;
+        return ((_a = this.createdReleaseTag) !== null && _a !== void 0 ? _a : this.previousReleaseTag).toString();
+    }
+}
+exports.CreateReleaseResult = CreateReleaseResult;
 function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
     return __awaiter(this, void 0, void 0, function* () {
         const baseVersion = ReleaseTagVersion.parse(baseVersionStr);
         if (baseVersion === null) {
             throw Error(`Failed to parse base version '${baseVersionStr}'`);
         }
-        const res = {
-            createdReleaseTag: null,
-            previousReleaseTag: baseVersion,
-            previousReleaseTagCommitSha: null,
-        };
+        const res = new CreateReleaseResult(null, baseVersion, null);
         if (!token) {
-            core.info("GitHub token is missing. Skipping release creation...");
+            core.info('GitHub token is missing. Skipping release creation...');
             return res;
         }
         const gitHubClient = new GitHubClient(token, context.repo.owner, context.repo.repo);
