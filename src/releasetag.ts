@@ -20,10 +20,6 @@ export async function CreateReleaseTag(
   releasesBranch: string,
   baseVersionStr: string | null,
 ): Promise<CreateReleaseResult> {
-  if (!token) {
-    throw Error('GitHub token is missing');
-  }
-
   const baseVersion = ReleaseTagVersion.parse(baseVersionStr);
   if (baseVersion === null) {
     throw Error(`Failed to parse base version '${baseVersionStr}'`);
@@ -34,6 +30,11 @@ export async function CreateReleaseTag(
     previousReleaseTag: baseVersion,
     previousReleaseTagCommitSha: null,
   };
+
+  if (!token) {
+    core.info("GitHub token is missing. Skipping release creation...")
+    return res;
+  }
 
   const gitHubClient = new GitHubClient(token, context.repo.owner, context.repo.repo);
   const tags = await gitHubClient.getTags();
