@@ -3,7 +3,7 @@ import * as github from '@actions/github';
 import {SemVer} from './version';
 import {GetOCI} from './oci';
 import {GetDockerInfo} from './docker';
-import {CreateReleaseTag} from './releasetag';
+import {CreateReleaseTag} from './releasetag/createreleasetag';
 import fs from 'fs';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

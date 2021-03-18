@@ -1,4 +1,4 @@
-import {ReleaseTagVersion as Ver} from '../src/releasetag';
+import {ReleaseTagVersion as Ver} from '../src/releasetag/releasetagversion';
 
 test('increment version', async () => {
   const ver = new Ver(3, 9, 1);
