@@ -38,12 +38,13 @@ test('parse version', async () => {
 });
 
 test('compare versions', async () => {
-  expect(Ver.parse('v3.8.4')?.isGreaterThan(Ver.parse('v4.0.0')!)).toBeFalsy();
-  expect(Ver.parse('v3.8.4')?.isGreaterThan(Ver.parse('v3.9.0')!)).toBeFalsy();
-  expect(Ver.parse('v3.8.4')?.isGreaterThan(Ver.parse('v3.8.5')!)).toBeFalsy();
-  expect(Ver.parse('v3.8.4')?.isGreaterThan(Ver.parse('v3.8.4')!)).toBeFalsy();
+  expect(Ver.parse('v3.8.4')?.isGreaterOrEqualTo(Ver.parse('v4.0.0')!)).toBeFalsy();
+  expect(Ver.parse('v3.8.4')?.isGreaterOrEqualTo(Ver.parse('v3.9.0')!)).toBeFalsy();
+  expect(Ver.parse('v3.8.4')?.isGreaterOrEqualTo(Ver.parse('v3.8.5')!)).toBeFalsy();
 
-  expect(Ver.parse('v3.8.5')?.isGreaterThan(Ver.parse('v3.8.4')!)).toBeTruthy();
-  expect(Ver.parse('v3.9.4')?.isGreaterThan(Ver.parse('v3.8.99')!)).toBeTruthy();
-  expect(Ver.parse('v4.8.4')?.isGreaterThan(Ver.parse('v3.99.99')!)).toBeTruthy();
+  expect(Ver.parse('v3.8.4')?.isGreaterOrEqualTo(Ver.parse('v3.8.4')!)).toBeTruthy();
+
+  expect(Ver.parse('v3.8.5')?.isGreaterOrEqualTo(Ver.parse('v3.8.4')!)).toBeTruthy();
+  expect(Ver.parse('v3.9.4')?.isGreaterOrEqualTo(Ver.parse('v3.8.99')!)).toBeTruthy();
+  expect(Ver.parse('v4.8.4')?.isGreaterOrEqualTo(Ver.parse('v3.99.99')!)).toBeTruthy();
 });

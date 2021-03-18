@@ -390,7 +390,7 @@ function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
             if (!commits.find(x => x.sha === tag.commit.sha)) {
                 continue;
             }
-            if (ver.isGreaterThan(res.previousReleaseTag)) {
+            if (ver.isGreaterOrEqualTo(res.previousReleaseTag)) {
                 res.previousReleaseTag = ver;
                 res.previousReleaseTagCommitSha = tag.commit.sha;
             }
@@ -534,7 +534,7 @@ class ReleaseTagVersion {
     toString() {
         return `v${this.major}.${this.minor}.${this.patch}`;
     }
-    isGreaterThan(ver) {
+    isGreaterOrEqualTo(ver) {
         if (this.major !== ver.major) {
             return this.major > ver.major;
         }
@@ -544,7 +544,7 @@ class ReleaseTagVersion {
         if (this.patch !== ver.patch) {
             return this.patch > ver.patch;
         }
-        return false;
+        return true;
     }
     incrementMajor() {
         this.major++;

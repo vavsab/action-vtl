@@ -55,7 +55,7 @@ export async function CreateReleaseTag(
       continue;
     }
 
-    if (ver.isGreaterThan(res.previousReleaseTag)) {
+    if (ver.isGreaterOrEqualTo(res.previousReleaseTag)) {
       res.previousReleaseTag = ver;
       res.previousReleaseTagCommitSha = tag.commit.sha;
     }
@@ -239,7 +239,7 @@ export class ReleaseTagVersion {
     return `v${this.major}.${this.minor}.${this.patch}`;
   }
 
-  isGreaterThan(ver: ReleaseTagVersion): boolean {
+  isGreaterOrEqualTo(ver: ReleaseTagVersion): boolean {
     if (this.major !== ver.major) {
       return this.major > ver.major;
     }
@@ -252,7 +252,7 @@ export class ReleaseTagVersion {
       return this.patch > ver.patch;
     }
 
-    return false;
+    return true;
   }
 
   incrementMajor(): void {
