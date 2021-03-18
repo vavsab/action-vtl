@@ -32,7 +32,7 @@ export async function CreateReleaseTag(
   };
 
   if (!token) {
-    core.info("GitHub token is missing. Skipping release creation...")
+    core.info('GitHub token is missing. Skipping release creation...');
     return res;
   }
 

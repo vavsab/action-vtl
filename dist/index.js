@@ -366,9 +366,6 @@ const github = __importStar(__webpack_require__(438));
 const core = __importStar(__webpack_require__(186));
 function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (!token) {
-            throw Error('GitHub token is missing');
-        }
         const baseVersion = ReleaseTagVersion.parse(baseVersionStr);
         if (baseVersion === null) {
             throw Error(`Failed to parse base version '${baseVersionStr}'`);
@@ -378,6 +375,10 @@ function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
             previousReleaseTag: baseVersion,
             previousReleaseTagCommitSha: null,
         };
+        if (!token) {
+            core.info("GitHub token is missing. Skipping release creation...");
+            return res;
+        }
         const gitHubClient = new GitHubClient(token, context.repo.owner, context.repo.repo);
         const tags = yield gitHubClient.getTags();
         const commits = yield gitHubClient.getCommits(context.sha);
