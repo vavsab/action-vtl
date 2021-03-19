@@ -479,7 +479,7 @@ function CreateReleaseTag(context, token, releasesBranch, baseVersionStr) {
                 res.createdReleaseTag.incrementPatch();
             }
             else {
-                core.warning('Did not find any new commit since the latest release tag. Seems that release is already created.');
+                core.info('Did not find any new commit since the latest release tag. Seems that release is already created.');
                 return res;
             }
         }

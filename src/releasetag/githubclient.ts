@@ -8,14 +8,7 @@ export class GitHubClient {
     this.octokit = github.getOctokit(token);
   }
 
-  async getTags(): Promise<
-    {
-      name: string;
-      commit: {
-        sha: string;
-      };
-    }[]
-  > {
+  async getTags(): Promise<TagInfo[]> {
     const res = await this.octokit.request('GET /repos/{owner}/{repo}/tags', {
       owner: this.owner,
       repo: this.repo,
@@ -25,16 +18,7 @@ export class GitHubClient {
     return res.data;
   }
 
-  async getCommits(
-    startFromSha: string,
-  ): Promise<
-    {
-      sha: string;
-      commit: {
-        message: string;
-      };
-    }[]
-  > {
+  async getCommits(startFromSha: string): Promise<CommitInfo[]> {
     const res = await this.octokit.request('GET /repos/{owner}/{repo}/commits', {
       owner: this.owner,
       repo: this.repo,
@@ -62,4 +46,18 @@ export class GitHubClient {
       sha: commitSha,
     });
   }
+}
+
+export interface TagInfo {
+  name: string;
+  commit: {
+    sha: string;
+  };
+}
+
+export interface CommitInfo {
+  sha: string;
+  commit: {
+    message: string;
+  };
 }

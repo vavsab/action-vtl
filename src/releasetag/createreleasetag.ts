@@ -151,7 +151,7 @@ export async function CreateReleaseTag(
     } else if (incrementPatch) {
       res.createdReleaseTag.incrementPatch();
     } else {
-      core.warning(
+      core.info(
         'Did not find any new commit since the latest release tag. Seems that release is already created.',
       );
       return res;
