@@ -7,16 +7,15 @@ This GitHub Action creates consistent versioning, tagging, and labels for use in
 
 ## Version automatic increment
 All versions are stored inside of tags. After every commit inside of the main branch (you may override it by `releasesBranch` parameter) version is incremented acconding to [conventional commit messages](https://www.conventionalcommits.org/en/v1.0.0/) and saved into a new tag. There are some quick examples:
-1. Increment **MINOR** version: `feat(#task123): allow users to edit their profile`
-2. Increment **PATCH** version (please note that specifying task id is optional): `fix: remove memory leak inside of WebController`
-3. Add **MAJOR** version (by adding `!` sign): `feat(#task123)!: rewrite user JSON representation in API`
-4. Increment **MAJOR** version (by adding `BREAKING CHANGE` somewhere inside of commit message): `fix: Remove wrong user name\n BREAKING CHANGE: Changed user name format`
-5. If you do NOT follow the [conventional commit messages](https://www.conventionalcommits.org/en/v1.0.0/) then it will increment **PATCH**: `Rename user profile classes` 
+| Commit                                            | What happens to versioning                           |
+|---------------------------------------------------|---------------------------------------|
+|`feat(#task123): allow users to edit their profile`|Increment **MINOR** version|
+|`fix: remove memory leak inside of WebController`  |Increment **PATCH** version|
+|`feat(#task123)!: rewrite user JSON representation in API`|Add **MAJOR** version (by adding `!` sign)|
+|`fix: Remove wrong user name\nBREAKING CHANGE: Changed user name format`|Increment **MAJOR** version (by adding `BREAKING CHANGE` somewhere inside of commit message)|
+|`Rename user profile classes`|If you do NOT follow the [conventional commit messages](https://www.conventionalcommits.org/en/v1.0.0/) then it will increment **PATCH**|
 
 **NOTE**: Tags are only created in `main` branch. So if you work in a separate branch it will NOT create any release until you merge the changes into `main`.
-
-**Why not have another action that bumps the base version in all .yml files after a release tag is created?**
-Mostly because we have no idea which tuple of your base version needs to be bumped. Is the next milestone a major bump? Minor bump? Patch bump? Also, do you keep that in an environment variable? Secret? Directly in the yml passed to this action? In the yml as an `environment` option which is then passed to this version? ... I could go on, but I'll just refer back to Rule #1.
 
 ## Versioning
 | Event           | Ref                           | Commit SHA | Base Ver | Run # | `${{ ver_semVer }}`                                    | `${{ ver_tag }}` |
