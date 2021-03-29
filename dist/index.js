@@ -41,12 +41,12 @@ const github = __importStar(__webpack_require__(5438));
 const version_1 = __webpack_require__(8217);
 function GetDockerInfo(dockerImage, version, context, token) {
     return __awaiter(this, void 0, void 0, function* () {
-        // If we have repo info and a token, get releases first
+        // If we have repo info and a token, get release tags first
         const payload = context.payload;
-        let releases = null;
+        let releaseTags = null;
         if (payload && token) {
             const octoKit = github.getOctokit(token);
-            releases = yield octoKit.repos.listReleases({
+            releaseTags = yield octoKit.repos.listTags({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
             });
@@ -81,15 +81,11 @@ function GetDockerInfo(dockerImage, version, context, token) {
                 tags.push(`${dockerImage}:${version.major}.${version.minor}`);
                 tags.push(`${dockerImage}:${version.major}.${version.minor}.${version.patch}`);
                 // Tagged build gets the 'latest' tag if it is the highest semver tag created
-                if (releases) {
+                if (releaseTags) {
                     // Look through all the releases for a newer tag
                     let newest = true;
-                    for (const release of releases.data) {
-                        // Skip pre-releases
-                        if (release.prerelease) {
-                            continue;
-                        }
-                        if (version_1.compareSemvers(version.tag, release.tag_name) < 0) {
+                    for (const releaseTag of releaseTags.data) {
+                        if (version_1.compareSemvers(version.tag, releaseTag.name) < 0) {
                             // Found a newer tag that already existed
                             newest = false;
                             break;
@@ -687,7 +683,7 @@ function SemVer(baseVer, isPrerelease, branchMappings, preReleasePrefix, context
             metadata: `${created.replace(/[.:-]/g, '')}.sha-${context.sha.substring(0, 8)}`,
             buildNumber: context.runNumber.toString(),
             created,
-            tag: '',
+            tag: isPrerelease ? '' : baseVer,
             semVer: '',
             semVerNoMeta: '',
             semVerFourTupleNumeric: '',

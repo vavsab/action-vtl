@@ -45,7 +45,7 @@ export async function SemVer(
     metadata: `${created.replace(/[.:-]/g, '')}.sha-${context.sha.substring(0, 8)}`,
     buildNumber: context.runNumber.toString(),
     created,
-    tag: '',
+    tag: isPrerelease ? '' : baseVer,
     semVer: '',
     semVerNoMeta: '',
     semVerFourTupleNumeric: '',
