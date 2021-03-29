@@ -1,5 +1,5 @@
 import * as github from '@actions/github';
-import {ReposListReleasesResponseData, OctokitResponse} from '@octokit/types';
+import {ReposListTagsResponseData, OctokitResponse} from '@octokit/types';
 import {Context} from '@actions/github/lib/context';
 import {Version, SEMVER_REGEX, compareSemvers} from './version';
 import {KnownPayload} from './oci';
@@ -15,12 +15,12 @@ export async function GetDockerInfo(
   context: Context,
   token: string | null,
 ): Promise<DockerInfo> {
-  // If we have repo info and a token, get releases first
+  // If we have repo info and a token, get release tags first
   const payload = context.payload as KnownPayload;
-  let releases: OctokitResponse<ReposListReleasesResponseData> | null = null;
+  let releaseTags: OctokitResponse<ReposListTagsResponseData> | null = null;
   if (payload && token) {
     const octoKit = github.getOctokit(token);
-    releases = await octoKit.repos.listReleases({
+    releaseTags = await octoKit.repos.listTags({
       owner: context.repo.owner, // payload.repository.owner.name ?? '',
       repo: context.repo.repo, //payload.repository.name,
     });
@@ -58,16 +58,11 @@ export async function GetDockerInfo(
       tags.push(`${dockerImage}:${version.major}.${version.minor}.${version.patch}`);
 
       // Tagged build gets the 'latest' tag if it is the highest semver tag created
-      if (releases) {
+      if (releaseTags) {
         // Look through all the releases for a newer tag
         let newest = true;
-        for (const release of releases.data) {
-          // Skip pre-releases
-          if (release.prerelease) {
-            continue;
-          }
-
-          if (compareSemvers(version.tag, release.tag_name) < 0) {
+        for (const releaseTag of releaseTags.data) {
+          if (compareSemvers(version.tag, releaseTag.name) < 0) {
             // Found a newer tag that already existed
             newest = false;
             break;
